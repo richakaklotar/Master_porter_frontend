@@ -146,7 +146,6 @@ function App() {
           {/* Dynamic Route Area */}
           <main className="content-body">
             <Routes>
-              <Route path="/" element={<Plant />} />
               <Route path="/plants" element={<Plant />} />
               <Route path="/divisions" element={<Division />} />
               <Route path="/machines" element={<Machine />} />
