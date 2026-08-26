@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "https://localhost:44361/api/Project";
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || "https://localhost:44361"}/api/Project`;
 
 const getProjects = () => axios.get(API_URL);
 const getProjectById = (id) => axios.get(`${API_URL}/${id}`);

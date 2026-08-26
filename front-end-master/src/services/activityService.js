@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "https://localhost:44361/api/Activities"; // Adjust port/endpoint if different
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || "https://localhost:44361"}/api/Activities`;
 
 const getActivities = () => {
     return axios.get(API_URL);

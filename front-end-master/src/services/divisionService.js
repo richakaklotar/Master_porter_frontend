@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "https://localhost:44361/api/Division";
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || "https://localhost:44361"}/api/Division`;
 
 const getDivisions = () => {
     return axios.get(API_URL);
