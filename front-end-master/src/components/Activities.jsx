@@ -227,7 +227,10 @@ function Activities() {
               </div>
 
               <div className="mb-4">
-                <label className="proto-label d-block mb-2">TYPE</label>
+                <label className="proto-label d-block mb-2">
+                  TYPE
+                </label>
+
                 <div className="form-check mb-1">
                   <input
                     className="form-check-input"
@@ -238,10 +241,19 @@ function Activities() {
                     checked={activity.type === "Cycle Time"}
                     onChange={handleChange}
                   />
-                  <label className="form-check-label" htmlFor="cycleTime">
+
+                  <label
+                    className="form-check-label"
+                    htmlFor="cycleTime"
+                    style={{
+                      textAlign: "left",
+                      display: "inline-block",
+                    }}
+                  >
                     Cycle Time
                   </label>
                 </div>
+
                 <div className="form-check mb-1">
                   <input
                     className="form-check-input"
@@ -252,10 +264,19 @@ function Activities() {
                     checked={activity.type === "Idle Hrs"}
                     onChange={handleChange}
                   />
-                  <label className="form-check-label" htmlFor="idleHrs">
+
+                  <label
+                    className="form-check-label"
+                    htmlFor="idleHrs"
+                    style={{
+                      textAlign: "left",
+                      display: "inline-block",
+                    }}
+                  >
                     Idle Hrs
                   </label>
                 </div>
+
                 <div className="form-check">
                   <input
                     className="form-check-input"
@@ -266,7 +287,15 @@ function Activities() {
                     checked={activity.type === "Unutilised Hrs"}
                     onChange={handleChange}
                   />
-                  <label className="form-check-label" htmlFor="unutilisedHrs">
+
+                  <label
+                    className="form-check-label"
+                    htmlFor="unutilisedHrs"
+                    style={{
+                      textAlign: "left",
+                      display: "inline-block",
+                    }}
+                  >
                     Unutilised Hrs
                   </label>
                 </div>

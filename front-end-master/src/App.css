@@ -418,7 +418,7 @@ html, body, #root {
 
 .proto-label {
   display: block;
-  text-align: center;
+  text-align: left;
   color: #173b68;
   font-size: 13px;
   font-weight: 500;
@@ -461,23 +461,30 @@ html, body, #root {
 .left-card-form .form-check {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start !important;
+  text-align: left !important;
   margin-top: 4px;
+  width: 100%;
 }
 
 .left-card-form .form-check-input {
   width: 15px;
   height: 15px;
-  margin: 0 5px 0 0;
+  margin: 0 8px 0 0;
   cursor: pointer;
   accent-color: #2f6fed;
+  flex-shrink: 0;
 }
 
 .left-card-form .form-check-label {
+  text-align: left !important;
+  display: inline-block;
   cursor: pointer;
   font-size: 14px !important;
   color: #475569 !important;
+  margin: 0;
 }
+
 
 /* =========================
    BUTTONS
@@ -1037,6 +1044,7 @@ td {
   margin-bottom: 7px;
   font-size: 12px;
   font-weight: 600;
+  text-align: left;
   color: #344054;
   text-transform: uppercase;
   letter-spacing: 0.3px;

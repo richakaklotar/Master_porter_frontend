@@ -130,18 +130,6 @@ function App() {
 
         {/* Main Content Dashboard */}
         <div className="main-content">
-          {/* Top Header */}
-          <header className="top-navbar">
-            <input
-              type="text"
-              className="search-input"
-              placeholder="🔍 Search..."
-            />
-            <div className="top-navbar-right">
-              <span>Tue, 18 Aug, 2026</span>
-              <span style={{ cursor: "pointer", fontSize: "1.1rem" }}>🔔</span>
-            </div>
-          </header>
 
           {/* Dynamic Route Area */}
           <main className="content-body">
