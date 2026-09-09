@@ -10,7 +10,7 @@ function Plant() {
     plantId: 0,
     plantName: "",
     plantCode: "",
-    isactive: true,
+    status: "Active",
   });
 
   const [isEdit, setIsEdit] = useState(false);
@@ -27,7 +27,7 @@ function Plant() {
 
       setPlants(response.data || []);
     } catch (err) {
-      console.error("GET PLANTS ERROR:", err);
+      console.error("LOAD PLANTS ERROR:", err);
 
       setError(
         err.response?.data?.message ||
@@ -55,87 +55,68 @@ function Plant() {
 
     setPlant((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+            ? "Active"
+            : "Inactive"
+          : value,
     }));
 
     setError("");
   };
 
   // =====================================================
-  // RESET FORM
+  // CHECK DUPLICATE PLANT NAME
   // =====================================================
-  const resetForm = () => {
-    setPlant({
-      plantId: 0,
-      plantName: "",
-      plantCode: "",
-      isactive: true,
-    });
+  const isDuplicatePlantName = () => {
+    const enteredName = plant.plantName.trim().toLowerCase();
 
-    setIsEdit(false);
-    setError("");
+    return plants.some((item) => {
+      const existingName = (item.plantName || "")
+        .trim()
+        .toLowerCase();
+
+      // During edit, ignore the current plant itself
+      if (
+        isEdit &&
+        Number(item.plantId) === Number(plant.plantId)
+      ) {
+        return false;
+      }
+
+      return existingName === enteredName;
+    });
   };
 
   // =====================================================
-  // VALIDATION
-  // =====================================================
-  const validateForm = () => {
-    // Plant Name required
-    if (!plant.plantName.trim()) {
-      setError("Plant Name is required");
-      return false;
-    }
-
-    // Plant Name maximum 25 characters
-    if (plant.plantName.trim().length > 25) {
-      setError("Plant Name cannot be more than 25 characters");
-      return false;
-    }
-
-    // Plant Code required
-    if (!plant.plantCode.trim()) {
-      setError("Plant Code is required");
-      return false;
-    }
-
-    // Duplicate Plant Code check
-    const duplicate = plants.some((item) => {
-      const itemId =
-        item.plantId ??
-        item.plantID ??
-        item.PlantId ??
-        item.PlantID ??
-        0;
-
-      const itemCode =
-        item.plantCode ??
-        item.PlantCode ??
-        "";
-
-      return (
-        itemCode.trim().toLowerCase() ===
-          plant.plantCode.trim().toLowerCase() &&
-        (!isEdit || Number(itemId) !== Number(plant.plantId))
-      );
-    });
-
-    if (duplicate) {
-      setError(
-        `Plant Code "${plant.plantCode.trim()}" already exists`
-      );
-      return false;
-    }
-
-    return true;
-  };
-
-  // =====================================================
-  // CREATE / UPDATE
+  // HANDLE SUBMIT - CREATE / UPDATE
   // =====================================================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    // ===================================================
+    // VALIDATION
+    // ===================================================
+
+    if (!plant.plantName.trim()) {
+      setError("Plant Name is required");
+      return;
+    }
+
+    if (!plant.plantCode.trim()) {
+      setError("Plant Code is required");
+      return;
+    }
+
+    // ===================================================
+    // DUPLICATE PLANT NAME CHECK
+    // ===================================================
+
+    if (isDuplicatePlantName()) {
+      setError(
+        `Plant Name "${plant.plantName.trim()}" already exists. Please enter a different Plant Name.`
+      );
       return;
     }
 
@@ -146,23 +127,26 @@ function Plant() {
         plantId: Number(plant.plantId),
         plantName: plant.plantName.trim(),
         plantCode: plant.plantCode.trim(),
-        isactive: Boolean(plant.isactive),
+        status: plant.status || "Active",
       };
 
+      // =================================================
+      // UPDATE
+      // =================================================
       if (isEdit) {
         await plantService.updatePlant(
-          Number(plant.plantId),
+          plant.plantId,
           requestData
         );
 
         alert("Plant updated successfully");
-      } else {
-        await plantService.createPlant({
-          plantId: 0,
-          plantName: plant.plantName.trim(),
-          plantCode: plant.plantCode.trim(),
-          isactive: Boolean(plant.isactive),
-        });
+      }
+
+      // =================================================
+      // CREATE
+      // =================================================
+      else {
+        await plantService.createPlant(requestData);
 
         alert("Plant created successfully");
       }
@@ -170,11 +154,11 @@ function Plant() {
       resetForm();
       await loadPlants();
     } catch (err) {
-      console.error("SAVE PLANT ERROR:", err);
+      console.error("PLANT SAVE ERROR:", err);
 
       setError(
-        err.response?.data?.message ||
-          err.response?.data?.title ||
+        err.response?.data?.title ||
+          err.response?.data?.message ||
           err.message ||
           "Something went wrong"
       );
@@ -193,39 +177,15 @@ function Plant() {
       const data = response.data;
 
       setPlant({
-        plantId:
-          data.plantId ??
-          data.plantID ??
-          data.PlantId ??
-          data.PlantID ??
-          id,
-
-        plantName:
-          data.plantName ??
-          data.PlantName ??
-          "",
-
-        plantCode:
-          data.plantCode ??
-          data.PlantCode ??
-          "",
-
-        isactive:
-          data.isactive ??
-          data.isActive ??
-          data.Isactive ??
-          data.IsActive ??
-          false,
+        plantId: data.plantId,
+        plantName: data.plantName || "",
+        plantCode: data.plantCode || "",
+        status: data.status || "Active",
       });
 
       setIsEdit(true);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
     } catch (err) {
-      console.error("EDIT PLANT ERROR:", err);
+      console.error("GET PLANT ERROR:", err);
 
       setError(
         err.response?.data?.message ||
@@ -240,7 +200,11 @@ function Plant() {
   // DELETE
   // =====================================================
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this plant?")) {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this plant?"
+      )
+    ) {
       return;
     }
 
@@ -250,10 +214,6 @@ function Plant() {
       await plantService.deletePlant(id);
 
       alert("Plant deleted successfully");
-
-      if (Number(plant.plantId) === Number(id)) {
-        resetForm();
-      }
 
       await loadPlants();
     } catch (err) {
@@ -269,24 +229,63 @@ function Plant() {
   };
 
   // =====================================================
+  // RESET FORM
+  // =====================================================
+  const resetForm = () => {
+    setPlant({
+      plantId: 0,
+      plantName: "",
+      plantCode: "",
+      status: "Active",
+    });
+
+    setIsEdit(false);
+    setError("");
+  };
+
+  // =====================================================
   // UI
   // =====================================================
   return (
-    <div className="plant-page-wrapper">
-
-      {/* ERROR */}
+    <div
+      className="plant-page-wrapper"
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        overflow: "hidden",
+      }}
+    >
+      {/* =====================================================
+          ERROR
+      ===================================================== */}
       {error && (
         <div className="alert alert-danger mb-4">
           <strong>Error:</strong> {String(error)}
         </div>
       )}
 
-      <div className="cards-side-by-side">
-
+      {/* =====================================================
+          FLEX CONTAINER
+      ===================================================== */}
+      <div
+        className="cards-side-by-side"
+        style={{
+          width: "100%",
+          display: "flex",
+          gap: "20px",
+          alignItems: "flex-start",
+        }}
+      >
         {/* =====================================================
-            LEFT - FORM
+            LEFT CARD - FORM
         ===================================================== */}
-        <div className="left-card-form">
+        <div
+          className="left-card-form"
+          style={{
+            flex: "0 0 32%",
+            minWidth: 0,
+          }}
+        >
           <div className="prototype-card">
             <form onSubmit={handleSubmit}>
 
@@ -321,24 +320,25 @@ function Plant() {
                   value={plant.plantCode}
                   onChange={handleChange}
                   placeholder="Enter Plant Code"
+                  maxLength={25}
                   required
                 />
               </div>
 
-              {/* ACTIVE */}
+              {/* STATUS */}
               <div className="form-check mb-4">
                 <input
                   type="checkbox"
                   className="form-check-input"
-                  id="isactive"
-                  name="isactive"
-                  checked={plant.isactive}
+                  id="status"
+                  name="status"
+                  checked={plant.status === "Active"}
                   onChange={handleChange}
                 />
 
                 <label
                   className="form-check-label ms-1"
-                  htmlFor="isactive"
+                  htmlFor="status"
                   style={{
                     fontSize: "0.85rem",
                     color: "#475569",
@@ -350,6 +350,7 @@ function Plant() {
 
               {/* BUTTONS */}
               <div className="d-flex gap-2 pt-1">
+
                 <button
                   type="submit"
                   className="btn-proto-save"
@@ -364,140 +365,215 @@ function Plant() {
                 >
                   Cancel
                 </button>
-              </div>
 
+              </div>
             </form>
           </div>
         </div>
 
         {/* =====================================================
-            RIGHT - TABLE
+            RIGHT CARD - TABLE
         ===================================================== */}
-        <div className="right-card-table">
-          <div className="prototype-card p-0 overflow-hidden">
-
+        <div
+          className="right-card-table"
+          style={{
+            flex: "1 1 68%",
+            minWidth: 0,
+            maxWidth: "68%",
+          }}
+        >
+          <div
+            className="prototype-card p-0"
+            style={{
+              width: "100%",
+              maxWidth: "100%",
+              overflow: "hidden",
+            }}
+          >
             {loading ? (
               <div
                 className="p-4 text-center text-muted"
-                style={{ fontSize: "0.875rem" }}
+                style={{
+                  fontSize: "0.875rem",
+                }}
               >
                 Loading plants...
               </div>
             ) : (
-              <table className="table-proto">
+              <div
+                style={{
+                  width: "100%",
+                  overflowX: "auto",
+                  overflowY: "hidden",
+                }}
+              >
+                <table
+                  className="table-proto"
+                  style={{
+                    width: "100%",
+                    minWidth: "550px",
+                    tableLayout: "fixed",
+                    marginBottom: 0,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th
+                        style={{
+                          width: "32%",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        PLANT NAME
+                      </th>
 
-                <thead>
-                  <tr>
-                    <th>PLANT NAME</th>
-                    <th>CODE</th>
-                    <th>STATUS</th>
-                    <th>ACTION</th>
-                  </tr>
-                </thead>
+                      <th
+                        style={{
+                          width: "23%",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        CODE
+                      </th>
 
-                <tbody>
-                  {plants.length > 0 ? (
-                    plants.map((item) => {
+                      <th
+                        style={{
+                          width: "20%",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        STATUS
+                      </th>
 
-                      const id =
-                        item.plantId ??
-                        item.plantID ??
-                        item.PlantId ??
-                        item.PlantID;
+                      <th
+                        style={{
+                          width: "25%",
+                          minWidth: "135px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        ACTION
+                      </th>
+                    </tr>
+                  </thead>
 
-                      const name =
-                        item.plantName ??
-                        item.PlantName ??
-                        "";
+                  <tbody>
+                    {plants.length > 0 ? (
+                      plants.map((item) => (
+                        <tr key={item.plantId}>
 
-                      const code =
-                        item.plantCode ??
-                        item.PlantCode ??
-                        "";
+                          {/* PLANT NAME */}
+                          <td
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.plantName}
+                          </td>
 
-                      const active =
-                        item.isactive ??
-                        item.isActive ??
-                        item.Isactive ??
-                        item.IsActive ??
-                        false;
+                          {/* CODE */}
+                          <td
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.plantCode}
+                          </td>
 
-                      return (
-                        <tr key={id}>
-
-                          <td>{name}</td>
-
-                          <td>{code}</td>
-
+                          {/* STATUS */}
                           <td>
                             <span
                               className={`badge ${
-                                Boolean(active)
+                                item.status === "Active"
                                   ? "bg-success"
                                   : "bg-secondary"
                               }`}
                               style={{
                                 fontWeight: "500",
                                 fontSize: "0.75rem",
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              {Boolean(active)
-                                ? "Active"
-                                : "Inactive"}
+                              {item.status || "Inactive"}
                             </span>
                           </td>
 
-                          <td>
-
-                            {/* EDIT */}
-                            <button
-                              type="button"
-                              className="btn btn-link btn-sm p-0 me-3 text-primary text-decoration-none"
+                          {/* ACTION */}
+                          <td
+                            style={{
+                              width: "135px",
+                              minWidth: "135px",
+                              padding: "10px 8px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <div
                               style={{
-                                fontSize: "0.85rem",
-                                fontWeight: "500",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "flex-start",
+                                gap: "12px",
+                                width: "100%",
+                                whiteSpace: "nowrap",
                               }}
-                              onClick={() => handleEdit(id)}
                             >
-                              Edit
-                            </button>
+                              {/* EDIT */}
+                              <button
+                                type="button"
+                                className="btn btn-link btn-sm p-0 text-primary text-decoration-none"
+                                style={{
+                                  fontSize: "0.85rem",
+                                  fontWeight: "500",
+                                  whiteSpace: "nowrap",
+                                  flexShrink: 0,
+                                }}
+                                onClick={() =>
+                                  handleEdit(item.plantId)
+                                }
+                              >
+                                Edit
+                              </button>
 
-                            {/* DELETE */}
-                            <button
-                              type="button"
-                              className="btn btn-link btn-sm p-0 text-danger text-decoration-none"
-                              style={{
-                                fontSize: "0.85rem",
-                                fontWeight: "500",
-                              }}
-                              onClick={() => handleDelete(id)}
-                            >
-                              Delete
-                            </button>
-
+                              {/* DELETE */}
+                              <button
+                                type="button"
+                                className="btn btn-link btn-sm p-0 text-danger text-decoration-none"
+                                style={{
+                                  fontSize: "0.85rem",
+                                  fontWeight: "500",
+                                  whiteSpace: "nowrap",
+                                  flexShrink: 0,
+                                }}
+                                onClick={() =>
+                                  handleDelete(item.plantId)
+                                }
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
-
                         </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan="4"
-                        className="text-center py-5 text-muted"
-                      >
-                        No plants found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-
-              </table>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan="4"
+                          className="text-center py-5 text-muted"
+                        >
+                          No plants found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
-
           </div>
         </div>
-
       </div>
     </div>
   );
