@@ -1,7 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
-  LoaderCircle,
   Pencil,
   Plus,
   RefreshCw,
@@ -10,12 +8,14 @@ import {
   Users,
 } from "lucide-react";
 import PageHeader from "../components/page-header";
+import { useConfirm } from "../components/confirm-dialog";
+import { notifyError, notifySuccess } from "../lib/notify";
+import FormDialog from "../components/form-dialog";
 import FormError from "../components/form-error";
 import employeeService from "../services/employeeService";
 import designationService from "../services/designationService";
 import shiftService from "../services/shiftService";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,14 +24,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -61,9 +53,6 @@ function Employee() {
 
   const [search, setSearch] = useState("");
 
-  const [showErrorPopup, setShowErrorPopup] = useState(false);
-  const [saveError, setSaveError] = useState("");
-
   const [showForm, setShowForm] = useState(false);
 
   const [employee, setEmployee] = useState({
@@ -79,6 +68,7 @@ function Employee() {
     status: "Active",
   });
 
+  const confirmAction = useConfirm();
   const [isEdit, setIsEdit] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -144,54 +134,6 @@ function Employee() {
   };
 
   // =====================================================
-  // PARSE API ERROR
-  // =====================================================
-  const parseApiError = (err) => {
-    console.error("API ERROR:", err);
-
-    const apiData = err?.response?.data;
-
-    if (apiData?.errors && typeof apiData.errors === "object") {
-      const messages = Object.entries(apiData.errors)
-        .flatMap(([field, fieldErrors]) => {
-          if (Array.isArray(fieldErrors)) {
-            return fieldErrors.map((message) => {
-              const fieldName = field.charAt(0).toUpperCase() + field.slice(1);
-
-              return `${fieldName}: ${message}`;
-            });
-          }
-
-          return [`${field}: ${fieldErrors}`];
-        })
-        .filter(Boolean);
-
-      if (messages.length > 0) {
-        return messages.join("\n");
-      }
-    }
-
-    if (apiData?.detail) return apiData.detail;
-    if (apiData?.message) return apiData.message;
-    if (apiData?.error) return apiData.error;
-    if (apiData?.title) return apiData.title;
-
-    if (typeof apiData === "string") {
-      return apiData;
-    }
-
-    return err?.message || "An unexpected error occurred.";
-  };
-
-  // =====================================================
-  // SHOW SAVE ERROR
-  // =====================================================
-  const showSaveError = (message) => {
-    setSaveError(String(message || "An unexpected error occurred."));
-    setShowErrorPopup(true);
-  };
-
-  // =====================================================
   // LOAD EMPLOYEES
   // =====================================================
   const loadEmployees = async () => {
@@ -211,6 +153,7 @@ function Employee() {
       setEmployees(data);
     } catch (err) {
       console.error("Load Employee Error:", err);
+      notifyError(err, "Failed to load employees.");
     } finally {
       setLoading(false);
     }
@@ -234,6 +177,7 @@ function Employee() {
       setDesignations(data);
     } catch (err) {
       console.error("Load Designation Error:", err);
+      notifyError(err, "Failed to load designations.");
     }
   };
 
@@ -255,6 +199,7 @@ function Employee() {
       setShifts(data);
     } catch (err) {
       console.error("Load Shift Error:", err);
+      notifyError(err, "Failed to load shifts.");
     }
   };
 
@@ -478,20 +423,20 @@ function Employee() {
       // UPDATE
       if (isEdit) {
         if (!employeeId || employeeId <= 0) {
-          showSaveError("Invalid Employee ID.");
+          notifyError(null, "Invalid Employee ID.");
           return;
         }
 
         await employeeService.updateEmployee(employeeId, requestData);
 
-        alert("Employee updated successfully.");
+        notifySuccess("Employee updated successfully.");
       }
 
       // CREATE
       else {
         await employeeService.createEmployee(requestData);
 
-        alert("Employee created successfully.");
+        notifySuccess("Employee created successfully.");
       }
 
       resetForm();
@@ -500,8 +445,7 @@ function Employee() {
       await loadEmployees();
     } catch (err) {
       console.error("Save Employee Error:", err);
-
-      showSaveError(parseApiError(err));
+      notifyError(err, "Failed to save employee.");
     } finally {
       setSaving(false);
     }
@@ -549,6 +493,7 @@ function Employee() {
       setShowForm(true);
     } catch (err) {
       console.error("Get Employee Error:", err);
+      notifyError(err, "Failed to load employee details.");
     } finally {
       setSaving(false);
     }
@@ -562,9 +507,12 @@ function Employee() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this employee?"
-    );
+    const confirmed = await confirmAction({
+      title: "Delete employee?",
+      message:
+        "Are you sure you want to delete this employee? This action cannot be undone.",
+      confirmText: "Delete",
+    });
 
     if (!confirmed) {
       return;
@@ -575,11 +523,12 @@ function Employee() {
 
       await employeeService.deleteEmployee(Number(id));
 
-      alert("Employee deleted successfully.");
+      notifySuccess("Employee deleted successfully.");
 
       await loadEmployees();
     } catch (err) {
       console.error("Delete Employee Error:", err);
+      notifyError(err, "Failed to delete employee.");
     } finally {
       setLoading(false);
     }
@@ -702,7 +651,7 @@ function Employee() {
 
       {/* ================= TABLE CARD ================= */}
       <Card className="border-border/60 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <CardTitle>Employee List</CardTitle>
             <Badge
@@ -712,7 +661,7 @@ function Employee() {
               {employees.length}
             </Badge>
           </div>
-          <div className="relative w-full max-w-[220px]">
+          <div className="relative w-full sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -869,264 +818,192 @@ function Employee() {
       {/* =====================================================
           ADD / EDIT DIALOG
       ===================================================== */}
-      <Dialog
+      <FormDialog
         open={showForm}
-        onOpenChange={(open) => {
-          if (!open) closeForm();
-        }}
+        onClose={closeForm}
+        onSubmit={handleSubmit}
+        icon={Users}
+        isEdit={isEdit}
+        title={isEdit ? "Edit Employee" : "Add Employee"}
+        description={
+          isEdit
+            ? "Update the employee details below."
+            : "Fill in the details to add a new employee."
+        }
+        submitLabel={isEdit ? "Update Employee" : "Save Employee"}
+        saving={saving}
+        maxWidth="md"
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                {isEdit ? (
-                  <Pencil className="size-4" />
-                ) : (
-                  <Users className="size-4" />
-                )}
-              </div>
-              <div>
-                <DialogTitle>
-                  {isEdit ? "Edit Employee" : "Add Employee"}
-                </DialogTitle>
-                <DialogDescription>
-                  {isEdit
-                    ? "Update the employee details below."
-                    : "Fill in the details to add a new employee."}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-            {/* CODE + NAME */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="employeeCode">Employee Code <span className="text-destructive">*</span></Label>
-                <Input
-                  id="employeeCode"
-                  type="text"
-                  name="employeeCode"
-                  value={employee.employeeCode}
-                  onChange={handleChange}
-                  placeholder="Enter Employee Code"
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.employeeCode}
-                />
-                <FormError message={fieldErrors.employeeCode} />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="employeeName">Employee Name <span className="text-destructive">*</span></Label>
-                <Input
-                  id="employeeName"
-                  type="text"
-                  name="employeeName"
-                  value={employee.employeeName}
-                  onChange={handleChange}
-                  placeholder="Enter Employee Name"
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.employeeName}
-                />
-                <FormError message={fieldErrors.employeeName} />
-              </div>
-            </div>
-
-            {/* PHONE + EMAIL */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="phone">Phone <span className="text-destructive">*</span></Label>
-                <Input
-                  id="phone"
-                  type="text"
-                  name="phone"
-                  value={employee.phone}
-                  onChange={handlePhoneChange}
-                  placeholder="Enter Phone"
-                  maxLength={10}
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.phone}
-                />
-                <FormError message={fieldErrors.phone} />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
-                <Input
-                  id="email"
-                  type="email"
-                  name="email"
-                  value={employee.email}
-                  onChange={handleChange}
-                  placeholder="Enter Email"
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.email}
-                />
-                <FormError message={fieldErrors.email} />
-              </div>
-            </div>
-
-            {/* ADDRESS */}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="address">Address <span className="text-destructive">*</span></Label>
-              <Textarea
-                id="address"
-                name="address"
-                value={employee.address}
-                onChange={handleChange}
-                placeholder="Enter Address"
-                rows={2}
-                disabled={saving}
-                aria-invalid={!!fieldErrors.address}
-              />
-              <FormError message={fieldErrors.address} />
-            </div>
-
-            {/* JOINING DATE */}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="joiningDate">Joining Date <span className="text-destructive">*</span></Label>
-              <Input
-                id="joiningDate"
-                type="date"
-                name="joiningDate"
-                value={employee.joiningDate}
-                onChange={handleChange}
-                disabled={saving}
-                aria-invalid={!!fieldErrors.joiningDate}
-              />
-              <FormError message={fieldErrors.joiningDate} />
-            </div>
-
-            {/* DESIGNATION + SHIFT */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="designationID">Designation <span className="text-destructive">*</span></Label>
-                <Select
-                  value={employee.designationID}
-                  onValueChange={handleDesignationChange}
-                  disabled={saving}
-                >
-                  <SelectTrigger
-                    id="designationID"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.designationID}
-                  >
-                    <SelectValue placeholder="Select Designation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {designations.map((designation) => {
-                      const id = getEntityProperty(designation, "designationID");
-                      const name =
-                        getEntityProperty(designation, "designationName") ||
-                        "-";
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.designationID} />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="shiftID">Shift <span className="text-destructive">*</span></Label>
-                <Select
-                  value={employee.shiftID}
-                  onValueChange={handleShiftChange}
-                  disabled={saving}
-                >
-                  <SelectTrigger
-                    id="shiftID"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.shiftID}
-                  >
-                    <SelectValue placeholder="Select Shift" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shifts.map((shift) => {
-                      const id = getEntityProperty(shift, "shiftID");
-                      const name = getEntityProperty(shift, "shiftName") || "-";
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.shiftID} />
-              </div>
-            </div>
-
-            {/* STATUS */}
-            <StatusToggle
-              value={employee.status}
-              onChange={handleStatusChange}
+        {/* CODE + NAME */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="employeeCode">Employee Code <span className="text-destructive">*</span></Label>
+            <Input
+              id="employeeCode"
+              type="text"
+              name="employeeCode"
+              value={employee.employeeCode}
+              onChange={handleChange}
+              placeholder="Enter Employee Code"
               disabled={saving}
+              aria-invalid={!!fieldErrors.employeeCode}
             />
+            <FormError message={fieldErrors.employeeCode} />
+          </div>
 
-            {/* BUTTONS */}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={closeForm}
-                disabled={saving}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="employeeName">Employee Name <span className="text-destructive">*</span></Label>
+            <Input
+              id="employeeName"
+              type="text"
+              name="employeeName"
+              value={employee.employeeName}
+              onChange={handleChange}
+              placeholder="Enter Employee Name"
+              disabled={saving}
+              aria-invalid={!!fieldErrors.employeeName}
+            />
+            <FormError message={fieldErrors.employeeName} />
+          </div>
+        </div>
+
+        {/* PHONE + EMAIL */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="phone">Phone <span className="text-destructive">*</span></Label>
+            <Input
+              id="phone"
+              type="text"
+              name="phone"
+              value={employee.phone}
+              onChange={handlePhoneChange}
+              placeholder="Enter Phone"
+              maxLength={10}
+              disabled={saving}
+              aria-invalid={!!fieldErrors.phone}
+            />
+            <FormError message={fieldErrors.phone} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+            <Input
+              id="email"
+              type="email"
+              name="email"
+              value={employee.email}
+              onChange={handleChange}
+              placeholder="Enter Email"
+              disabled={saving}
+              aria-invalid={!!fieldErrors.email}
+            />
+            <FormError message={fieldErrors.email} />
+          </div>
+        </div>
+
+        {/* ADDRESS */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="address">Address <span className="text-destructive">*</span></Label>
+          <Textarea
+            id="address"
+            name="address"
+            value={employee.address}
+            onChange={handleChange}
+            placeholder="Enter Address"
+            rows={2}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.address}
+          />
+          <FormError message={fieldErrors.address} />
+        </div>
+
+        {/* JOINING DATE */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="joiningDate">Joining Date <span className="text-destructive">*</span></Label>
+          <Input
+            id="joiningDate"
+            type="date"
+            name="joiningDate"
+            value={employee.joiningDate}
+            onChange={handleChange}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.joiningDate}
+          />
+          <FormError message={fieldErrors.joiningDate} />
+        </div>
+
+        {/* DESIGNATION + SHIFT */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="designationID">Designation <span className="text-destructive">*</span></Label>
+            <Select
+              value={employee.designationID}
+              onValueChange={handleDesignationChange}
+              disabled={saving}
+            >
+              <SelectTrigger
+                id="designationID"
+                className="w-full"
+                aria-invalid={!!fieldErrors.designationID}
               >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : isEdit ? (
-                  "Update"
-                ) : (
-                  "Save"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <SelectValue placeholder="Select Designation" />
+              </SelectTrigger>
+              <SelectContent>
+                {designations.map((designation) => {
+                  const id = getEntityProperty(designation, "designationID");
+                  const name =
+                    getEntityProperty(designation, "designationName") ||
+                    "-";
 
-      {/* =====================================================
-          SAVE / UPDATE ERROR DIALOG
-      ===================================================== */}
-      <Dialog open={showErrorPopup} onOpenChange={setShowErrorPopup}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEdit ? "Update Failed" : "Save Failed"}</DialogTitle>
-          </DialogHeader>
+                  return (
+                    <SelectItem key={String(id)} value={String(id)}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <FormError message={fieldErrors.designationID} />
+          </div>
 
-          <Alert variant="destructive">
-            <AlertCircle className="size-4" />
-            <AlertTitle>Action could not be completed</AlertTitle>
-            <AlertDescription>
-              {String(saveError)
-                .split("\n")
-                .map((message, index) => (
-                  <React.Fragment key={index}>
-                    {message}
-                    {index < String(saveError).split("\n").length - 1 && (
-                      <br />
-                    )}
-                  </React.Fragment>
-                ))}
-            </AlertDescription>
-          </Alert>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="shiftID">Shift <span className="text-destructive">*</span></Label>
+            <Select
+              value={employee.shiftID}
+              onValueChange={handleShiftChange}
+              disabled={saving}
+            >
+              <SelectTrigger
+                id="shiftID"
+                className="w-full"
+                aria-invalid={!!fieldErrors.shiftID}
+              >
+                <SelectValue placeholder="Select Shift" />
+              </SelectTrigger>
+              <SelectContent>
+                {shifts.map((shift) => {
+                  const id = getEntityProperty(shift, "shiftID");
+                  const name = getEntityProperty(shift, "shiftName") || "-";
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowErrorPopup(false)}>
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                  return (
+                    <SelectItem key={String(id)} value={String(id)}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <FormError message={fieldErrors.shiftID} />
+          </div>
+        </div>
+
+        {/* STATUS */}
+        <StatusToggle
+          value={employee.status}
+          onChange={handleStatusChange}
+          disabled={saving}
+        />
+      </FormDialog>
     </div>
   );
 }

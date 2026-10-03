@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import "./index.css";
 import App from "./App.jsx";
+import AppToaster from "./components/app-toaster";
+import { ConfirmProvider } from "./components/confirm-dialog";
 
 const muiTheme = createTheme({
   palette: {
@@ -18,9 +20,12 @@ const muiTheme = createTheme({
 });
 
 createRoot(document.getElementById("root")).render(
-  <StrictMode>
+  // <StrictMode>
     <ThemeProvider theme={muiTheme}>
-      <App />
+      <ConfirmProvider>
+        <App />
+      </ConfirmProvider>
+      <AppToaster />
     </ThemeProvider>
-  </StrictMode>,
+  // </StrictMode>,
 );

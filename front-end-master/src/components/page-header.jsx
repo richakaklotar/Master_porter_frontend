@@ -4,7 +4,7 @@ function PageHeader({ icon: Icon, title, description, children, className }) {
   return (
     <div
       className={cn(
-        "mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
+        "mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:mb-6",
         className
       )}
     >

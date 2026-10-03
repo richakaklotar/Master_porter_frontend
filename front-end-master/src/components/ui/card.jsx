@@ -7,7 +7,7 @@ function Card({ className, ...props }) {
       elevation={0}
       data-slot="card"
       className={cn(
-        "flex flex-col gap-6 rounded-2xl border border-border/60 py-6 shadow-sm",
+        "flex min-w-0 flex-col gap-4 rounded-2xl border border-border/60 py-4 shadow-sm sm:gap-6 sm:py-6",
         className,
       )}
       sx={{ boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)" }}
@@ -20,7 +20,7 @@ function CardHeader({ className, ...props }) {
   return (
     <div
       data-slot="card-header"
-      className={cn("grid auto-rows-min items-start gap-1.5 px-6", className)}
+      className={cn("grid auto-rows-min items-start gap-1.5 px-4 sm:px-6", className)}
       {...props}
     />
   );

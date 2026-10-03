@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
-  LoaderCircle,
   Pencil,
   RefreshCw,
   Search,
   Trash2,
+  Plus,
 } from "lucide-react";
 import PageHeader from "../components/page-header";
+import { useConfirm } from "../components/confirm-dialog";
+import { notifyError, notifySuccess } from "../lib/notify";
+import FormDialog from "../components/form-dialog";
 import FormError from "../components/form-error";
 import designationService from "../services/designationService";
 
@@ -16,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -41,7 +43,9 @@ function Designation() {
     status: "Active",
   });
 
+  const confirmAction = useConfirm();
   const [isEdit, setIsEdit] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -125,6 +129,7 @@ function Designation() {
       setDesignations(data);
     } catch (err) {
       console.error("Get Error:", err);
+      notifyError(err, "Failed to load designations.");
     } finally {
       setLoading(false);
     }
@@ -255,7 +260,7 @@ function Designation() {
 
         await designationService.updateDesignation(id, requestData);
 
-        alert("Designation updated successfully.");
+        notifySuccess("Designation updated successfully.");
       }
 
       // =========================
@@ -272,16 +277,18 @@ function Designation() {
 
         await designationService.createDesignation(requestData);
 
-        alert("Designation created successfully.");
+        notifySuccess("Designation created successfully.");
       }
 
       // Reset form
+      setShowForm(false);
       resetForm();
 
       // Reload table
       await loadDesignations();
     } catch (err) {
       console.error("Save Error:", err);
+      notifyError(err, "Failed to save designation.");
     } finally {
       setSaving(false);
     }
@@ -306,11 +313,7 @@ function Designation() {
     });
 
     setIsEdit(true);
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    setShowForm(true);
   };
 
   // =========================
@@ -323,9 +326,12 @@ function Designation() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this designation?"
-    );
+    const confirmed = await confirmAction({
+      title: "Delete designation?",
+      message:
+        "Are you sure you want to delete this designation? This action cannot be undone.",
+      confirmText: "Delete",
+    });
 
     if (!confirmed) return;
 
@@ -334,7 +340,7 @@ function Designation() {
 
       await designationService.deleteDesignation(id);
 
-      alert("Designation deleted successfully.");
+      notifySuccess("Designation deleted successfully.");
 
       if (Number(designation.designationId) === id) {
         resetForm();
@@ -343,9 +349,24 @@ function Designation() {
       await loadDesignations();
     } catch (err) {
       console.error("Delete Error:", err);
+      notifyError(err, "Failed to delete designation.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // =====================================================
+  // OPEN / CLOSE ADD-EDIT DIALOG
+  // =====================================================
+  const handleAdd = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setShowForm(false);
+    resetForm();
   };
 
   // =========================
@@ -397,206 +418,174 @@ function Designation() {
           <RefreshCw className="size-4" />
           Refresh
         </Button>
+        <Button size="sm" onClick={handleAdd}>
+          <Plus className="size-4" />
+          Add Designation
+        </Button>
       </PageHeader>
 
-      {/* ================= CONTENT ================= */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
-        {/* ===== FORM CARD ===== */}
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                {isEdit ? (
-                  <Pencil className="size-4" />
-                ) : (
-                  <BadgeCheck className="size-4" />
-                )}
-              </div>
-              <div>
-                <CardTitle>
-                  {isEdit ? "Edit Designation" : "Add Designation"}
-                </CardTitle>
-                <CardDescription>
-                  {isEdit
-                    ? "Update the designation details below."
-                    : "Fill in the details to add a new designation."}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-              {/* DESIGNATION NAME */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="designationName">Designation Name <span className="text-destructive">*</span></Label>
-                <Input
-                  id="designationName"
-                  type="text"
-                  name="designationName"
-                  value={designation.designationName}
-                  onChange={handleChange}
-                  placeholder="Enter designation name"
-                  maxLength={50}
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.designationName}
-                />
-                <FormError message={fieldErrors.designationName} />
-              </div>
-
-              {/* STATUS + BUTTONS */}
-              <div className="mt-1 flex flex-col gap-4">
-                <StatusToggle
-                  value={designation.status}
-                  onChange={handleStatusChange}
-                  disabled={saving}
-                />
-
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    disabled={saving}
-                    className="flex-1"
-                  >
-                    {saving ? (
-                      <>
-                        <LoaderCircle className="size-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : isEdit ? (
-                      "Update Designation"
-                    ) : (
-                      "Save Designation"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* ===== TABLE CARD ===== */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-            <div className="flex items-center gap-2">
-              <CardTitle>Designation List</CardTitle>
-              <Badge
-                variant="secondary"
-                className="rounded-full font-normal"
-              >
-                {designations.length}
-              </Badge>
-            </div>
-            <div className="relative w-full max-w-[220px]">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search designations..."
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="px-0 pb-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Designation</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <TableRow key={i} className="hover:bg-transparent">
-                      <TableCell colSpan={3} className="py-3">
-                        <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : filteredDesignations.length > 0 ? (
-                  filteredDesignations.map((item, index) => {
-                    const id = extractId(item);
-                    const name = extractName(item);
-                    const status = extractStatus(item);
-                    const isActive = status === "Active";
-
-                    return (
-                      <TableRow
-                        key={id || index}
-                        className="group transition-colors"
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-                              {getInitials(name)}
-                            </div>
-                            {name}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={isActive ? "success" : "secondary"}
-                          >
-                            {isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(item)}
-                            >
-                              <Pencil className="size-3.5" />
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => handleDelete(item)}
-                            >
-                              <Trash2 className="size-3.5" />
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      colSpan={3}
-                      className="h-48 text-center"
-                    >
-                      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <div className="flex size-11 items-center justify-center rounded-full bg-muted">
-                          <BadgeCheck className="size-5" />
-                        </div>
-                        <p className="text-sm font-medium text-foreground">
-                          {search
-                            ? "No matching designations"
-                            : "No designations yet"}
-                        </p>
-                        <p className="text-xs">
-                          {search
-                            ? "Try a different name."
-                            : "Add your first designation using the form."}
-                        </p>
-                      </div>
+      {/* ================= TABLE CARD ================= */}
+      <Card>
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle>Designation List</CardTitle>
+            <Badge
+              variant="secondary"
+              className="rounded-full font-normal"
+            >
+              {designations.length}
+            </Badge>
+          </div>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search designations..."
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Designation</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i} className="hover:bg-transparent">
+                    <TableCell colSpan={3} className="py-3">
+                      <div className="h-4 w-full animate-pulse rounded bg-muted" />
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                ))
+              ) : filteredDesignations.length > 0 ? (
+                filteredDesignations.map((item, index) => {
+                  const id = extractId(item);
+                  const name = extractName(item);
+                  const status = extractStatus(item);
+                  const isActive = status === "Active";
+
+                  return (
+                    <TableRow
+                      key={id || index}
+                      className="group transition-colors"
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                            {getInitials(name)}
+                          </div>
+                          {name}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={isActive ? "success" : "secondary"}
+                        >
+                          {isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(item)}
+                          >
+                            <Pencil className="size-3.5" />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDelete(item)}
+                          >
+                            <Trash2 className="size-3.5" />
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={3}
+                    className="h-48 text-center"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-muted">
+                        <BadgeCheck className="size-5" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {search
+                          ? "No matching designations"
+                          : "No designations yet"}
+                      </p>
+                      <p className="text-xs">
+                        {search
+                          ? "Try a different name."
+                          : "Add your first designation using the Add button."}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* ================= ADD / EDIT DIALOG ================= */}
+      <FormDialog
+        open={showForm}
+        onClose={closeForm}
+        onSubmit={handleSubmit}
+        icon={BadgeCheck}
+        isEdit={isEdit}
+        title={isEdit ? "Edit Designation" : "Add Designation"}
+        description={
+          isEdit
+            ? "Update the designation details below."
+            : "Fill in the details to add a new designation."
+        }
+        submitLabel={isEdit ? "Update Designation" : "Save Designation"}
+        saving={saving}
+      >
+        {/* DESIGNATION NAME */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="designationName">Designation Name <span className="text-destructive">*</span></Label>
+          <Input
+            id="designationName"
+            type="text"
+            name="designationName"
+            value={designation.designationName}
+            onChange={handleChange}
+            placeholder="Enter designation name"
+            maxLength={50}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.designationName}
+          />
+          <FormError message={fieldErrors.designationName} />
+        </div>
+
+        {/* STATUS */}
+        <StatusToggle
+          value={designation.status}
+          onChange={handleStatusChange}
+          disabled={saving}
+        />
+      </FormDialog>
     </div>
   );
 }

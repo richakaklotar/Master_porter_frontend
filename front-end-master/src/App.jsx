@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -19,6 +19,7 @@ import {
   Clock,
   BadgeCheck,
   Users,
+  ClipboardList,
   Menu,
   LayoutDashboard,
   X,
@@ -32,7 +33,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogTitle, DialogContent } from "@/components/ui/dialog";
 
 import Plant from "./pages/Plant";
 import Division from "./pages/Division";
@@ -44,8 +44,10 @@ import SubActivities from "./pages/SubActivities";
 import Shifts from "./pages/Shifts";
 import Designation from "./pages/Designation";
 import Employee from "./pages/Employee";
+import JobCard from "./pages/JobCard";
 import Login from "./pages/Login";
 import { isAuthenticated, logout } from "./lib/auth";
+import {useMediaQuery,useTheme} from "@mui/material";
 
 const NAV_ITEMS = [
   { to: "/plants", label: "Plants", icon: Factory },
@@ -58,6 +60,7 @@ const NAV_ITEMS = [
   { to: "/shifts", label: "Shifts", icon: Clock },
   { to: "/designations", label: "Designations", icon: BadgeCheck },
   { to: "/employees", label: "Employees", icon: Users },
+  { to: "/job-card", label: "Job Card", icon: ClipboardList },
 ];
 
 function Brand({ collapsed }) {
@@ -85,7 +88,7 @@ function Brand({ collapsed }) {
 
 function NavItems({ collapsed, onNavigate }) {
   return (
-    <nav className="flex flex-col gap-1">
+    <nav className="flex flex-col gap-0.5 lg:gap-1">
       {!collapsed && (
         <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/50">
           Masters
@@ -153,7 +156,7 @@ function SidebarFooter({ collapsed, onLogout }) {
               </div>
             </div>
             <Button
-              variant="ghost"
+              variant="contained"
               size="icon"
               aria-label="Log out"
               title="Log out"
@@ -167,7 +170,7 @@ function SidebarFooter({ collapsed, onLogout }) {
       </div>
       {collapsed && (
         <Button
-          variant="ghost"
+          variant="contained"
           size="icon"
           aria-label="Log out"
           title="Log out"
@@ -181,20 +184,44 @@ function SidebarFooter({ collapsed, onLogout }) {
   );
 }
 
-function Sidebar({ collapsed, onNavigate, onLogout }) {
+function Sidebar({ collapsed, onNavigate, onLogout, onClose }) {
   return (
-    <aside
-      className={cn(
-        "flex h-full flex-col justify-between gap-6 py-6",
-        collapsed ? "px-3" : "px-4"
-      )}
-    >
-      <div className="flex flex-col gap-6">
+    <div className="flex h-full min-h-0 flex-col gap-4 py-4 lg:gap-6 lg:py-6">
+      {/* Brand (pinned top) */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2",
+          collapsed ? "justify-center px-3" : "justify-between px-4"
+        )}
+      >
         <Brand collapsed={collapsed} />
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Nav list (scrolls when it doesn't fit) */}
+      <div
+        className={cn(
+          "sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain",
+          collapsed ? "px-3" : "px-4"
+        )}
+      >
         <NavItems collapsed={collapsed} onNavigate={onNavigate} />
       </div>
-      <SidebarFooter collapsed={collapsed} onLogout={onLogout} />
-    </aside>
+
+      {/* Footer (pinned bottom) */}
+      <div className={cn("shrink-0", collapsed ? "px-3" : "px-4")}>
+        <SidebarFooter collapsed={collapsed} onLogout={onLogout} />
+      </div>
+    </div>
   );
 }
 
@@ -209,6 +236,34 @@ function AppShell() {
   });
   const location = useLocation();
   const navigate = useNavigate();
+
+  const theme = useTheme();
+  const isSmallDevice = useMediaQuery(theme.breakpoints.down("md"));
+
+  // Mobile drawer: lock page scroll while open, close on Escape
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  // Close the drawer if the screen grows to desktop size
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = (e) => {
+      if (e.matches) setMenuOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   if (!isAuthenticated()) {
     return (
@@ -259,7 +314,7 @@ function AppShell() {
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            <Button
+            {isSmallDevice && <Button
               variant="outline"
               size="icon"
               aria-label="Open menu"
@@ -267,9 +322,9 @@ function AppShell() {
               onClick={() => setMenuOpen(true)}
             >
               <Menu className="size-4" />
-            </Button>
+            </Button>}
             <Button
-              variant="ghost"
+              variant="contained"
               size="icon"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               className="hidden lg:inline-flex"
@@ -289,46 +344,51 @@ function AppShell() {
               <span className="truncate font-medium">{current?.label}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* <div className="flex items-center gap-2">
             <div className="hidden items-center whitespace-nowrap rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 md:flex">
               <span className="size-1.5 rounded-full bg-emerald-500" />
               <span className="ml-2">All systems operational</span>
             </div>
-          </div>
+          </div> */}
         </div>
       </header>
 
       {/* ============ MOBILE MENU ============ */}
-      <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
-        <DialogContent
-          className="left-0 top-0 h-full w-full max-w-none translate-x-0 translate-y-0 items-start gap-0 rounded-none border-r p-0 sm:max-w-xs"
-          showCloseButton={false}
-        >
-          <DialogTitle className="sr-only">Navigation</DialogTitle>
-          <div className="flex w-full flex-col justify-between gap-6 bg-sidebar px-5 py-6 text-sidebar-foreground">
-            <div className="flex flex-col gap-6">
-              <div className="flex items-center justify-between">
-                <Brand collapsed={false} />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Close menu"
-                  className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <X className="size-4" />
-                </Button>
-              </div>
-              <NavItems collapsed={false} onNavigate={() => setMenuOpen(false)} />
-            </div>
-            <SidebarFooter collapsed={false} onLogout={handleLogout} />
-          </div>
-        </DialogContent>
-      </Dialog>
+      {menuOpen && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Mobile Sidebar */}
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation"
+            className={cn(
+              "fixed left-0 top-0 z-50 h-dvh max-h-dvh w-[82vw] max-w-72",
+              "bg-sidebar text-sidebar-foreground",
+              "border-r shadow-xl",
+              "lg:hidden",
+              "animate-in slide-in-from-left duration-300"
+            )}
+          >
+            <Sidebar
+              collapsed={false}
+              onNavigate={() => setMenuOpen(false)}
+              onLogout={handleLogout}
+              onClose={() => setMenuOpen(false)}
+            />
+          </aside>
+        </>
+      )}
 
       {/* ============ MAIN CONTENT ============ */}
       <div className={cn(contentPadding, "transition-[padding-left]")}>
-        <main className="mx-auto w-full max-w-[80rem] p-4 sm:p-6 lg:p-8">
+        <main className="mx-auto w-full min-w-0 p-3 sm:p-6 lg:p-8">
           <Routes>
             <Route path="/plants" element={<Plant />} />
             <Route path="/divisions" element={<Division />} />
@@ -340,6 +400,7 @@ function AppShell() {
             <Route path="/shifts" element={<Shifts />} />
             <Route path="/designations" element={<Designation />} />
             <Route path="/employees" element={<Employee />} />
+            <Route path="/job-card" element={<JobCard />} />
             <Route path="*" element={<Navigate to="/plants" replace />} />
           </Routes>
         </main>

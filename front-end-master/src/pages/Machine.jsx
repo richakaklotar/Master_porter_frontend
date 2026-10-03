@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Cog,
-  LoaderCircle,
   Pencil,
   QrCode,
   RefreshCw,
   Search,
   Trash2,
+  Plus,
 } from "lucide-react";
 import PageHeader from "../components/page-header";
+import { useConfirm } from "../components/confirm-dialog";
+import { notifyError, notifySuccess } from "../lib/notify";
+import FormDialog from "../components/form-dialog";
 import FormError from "../components/form-error";
 import { QRCodeCanvas } from "qrcode.react";
 
@@ -21,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -79,7 +81,9 @@ function Machine() {
     divisionId: "",
   });
 
+  const confirmAction = useConfirm();
   const [isEdit, setIsEdit] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   // =========================
   // FIELD ERRORS
@@ -120,6 +124,7 @@ function Machine() {
         setMachines(machineRes.value.data || []);
       } else {
         console.error("MACHINE LOAD ERROR:", machineRes.reason);
+        notifyError(machineRes.reason, "Failed to load machines.");
       }
 
       // Plants
@@ -127,6 +132,7 @@ function Machine() {
         setPlants(plantRes.value.data || []);
       } else {
         console.error("PLANT LOAD ERROR:", plantRes.reason);
+        notifyError(plantRes.reason, "Failed to load plants.");
       }
 
       // Divisions
@@ -137,9 +143,11 @@ function Machine() {
         setFilteredDivisions(divData);
       } else {
         console.error("DIVISION LOAD ERROR:", divisionRes.reason);
+        notifyError(divisionRes.reason, "Failed to load divisions.");
       }
     } catch (err) {
       console.error("MACHINE LOAD ERROR:", err);
+      notifyError(err, "Failed to load machines.");
     } finally {
       setLoading(false);
     }
@@ -381,7 +389,7 @@ function Machine() {
           requestData
         );
 
-        alert("Machine updated successfully.");
+        notifySuccess("Machine updated successfully.");
       }
 
       // =========================
@@ -390,16 +398,18 @@ function Machine() {
       else {
         await machineService.createMachine(requestData);
 
-        alert("Machine created successfully. QR Code generated.");
+        notifySuccess("Machine created successfully. QR Code generated.");
       }
 
       // Reload latest machine list
       await loadData();
 
       // Reset
+      setShowForm(false);
       resetForm();
     } catch (err) {
       console.error("SAVE MACHINE ERROR:", err.response?.data || err);
+      notifyError(err, "Failed to save machine.");
     } finally {
       setSaving(false);
     }
@@ -438,14 +448,10 @@ function Machine() {
       );
 
       setIsEdit(true);
-
-      // Scroll to form
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
+      setShowForm(true);
     } catch (err) {
       console.error("GET MACHINE BY ID ERROR:", err);
+      notifyError(err, "Failed to load machine details.");
     }
   };
 
@@ -453,9 +459,12 @@ function Machine() {
   // DELETE
   // =========================
   const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this machine?"
-    );
+    const confirmed = await confirmAction({
+      title: "Delete machine?",
+      message:
+        "Are you sure you want to delete this machine? This action cannot be undone.",
+      confirmText: "Delete",
+    });
 
     if (!confirmed) {
       return;
@@ -464,7 +473,7 @@ function Machine() {
     try {
       await machineService.deleteMachine(id);
 
-      alert("Machine deleted successfully.");
+      notifySuccess("Machine deleted successfully.");
 
       // If deleted machine was open in QR modal
       if (
@@ -478,7 +487,22 @@ function Machine() {
       await loadData();
     } catch (err) {
       console.error("DELETE MACHINE ERROR:", err);
+      notifyError(err, "Failed to delete machine.");
     }
+  };
+
+  // =====================================================
+  // OPEN / CLOSE ADD-EDIT DIALOG
+  // =====================================================
+  const handleAdd = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setShowForm(false);
+    resetForm();
   };
 
   // =========================
@@ -668,305 +692,279 @@ function Machine() {
           <RefreshCw className="size-4" />
           Refresh
         </Button>
+        <Button size="sm" onClick={handleAdd}>
+          <Plus className="size-4" />
+          Add Machine
+        </Button>
       </PageHeader>
 
-      {/* ================= CONTENT ================= */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
-        {/* ===== FORM CARD ===== */}
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                {isEdit ? (
-                  <Pencil className="size-4" />
-                ) : (
-                  <Cog className="size-4" />
-                )}
-              </div>
-              <div>
-                <CardTitle>{isEdit ? "Edit Machine" : "Add Machine"}</CardTitle>
-                <CardDescription>
-                  {isEdit
-                    ? "Update the machine details below."
-                    : "Fill in the details to add a new machine."}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-              {/* MACHINE NAME */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="machineName">Machine Name <span className="text-destructive">*</span></Label>
-                <Input
-                  id="machineName"
-                  type="text"
-                  name="machineName"
-                  value={machine.machineName}
-                  onChange={handleChange}
-                  placeholder="Enter Machine Name"
-                  maxLength={50}
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.machineName}
-                />
-                <FormError message={fieldErrors.machineName} />
-              </div>
-
-              {/* MACHINE CODE */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="machineCode">Machine Code <span className="text-destructive">*</span></Label>
-                <Input
-                  id="machineCode"
-                  type="text"
-                  name="machineCode"
-                  value={machine.machineCode}
-                  onChange={handleChange}
-                  placeholder="Enter Machine Code"
-                  maxLength={25}
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.machineCode}
-                />
-                <FormError message={fieldErrors.machineCode} />
-              </div>
-
-              {/* PLANT */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="plantId">Plant <span className="text-destructive">*</span></Label>
-                <Select
-                  value={machine.plantId}
-                  onValueChange={handlePlantChange}
-                  disabled={saving}
-                >
-                  <SelectTrigger
-                    id="plantId"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.plantId}
-                  >
-                    <SelectValue placeholder="Select Plant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {plants.map((plant) => {
-                      const id =
-                        plant.plantID ?? plant.PlantID ?? plant.plantId ?? plant.id;
-                      const name =
-                        plant.plantName ?? plant.PlantName ?? plant.name;
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.plantId} />
-              </div>
-
-              {/* DIVISION */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="divisionId">Division <span className="text-destructive">*</span></Label>
-                <Select
-                  value={machine.divisionId}
-                  onValueChange={handleDivisionChange}
-                  disabled={saving || !machine.plantId}
-                >
-                  <SelectTrigger
-                    id="divisionId"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.divisionId}
-                  >
-                    <SelectValue placeholder="Select Division" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredDivisions.map((division) => {
-                      const id =
-                        division.divisionId ??
-                        division.DivisionId ??
-                        division.divisionID ??
-                        division.DivisionID ??
-                        division.id;
-                      const name =
-                        division.divisionName ??
-                        division.DivisionName ??
-                        division.name;
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.divisionId} />
-              </div>
-
-              {/* STATUS + BUTTONS */}
-              <div className="mt-1 flex flex-col gap-4">
-                <StatusToggle
-                  value={machine.status}
-                  onChange={handleStatusChange}
-                  disabled={saving}
-                />
-
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={saving} className="flex-1">
-                    {saving ? (
-                      <>
-                        <LoaderCircle className="size-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : isEdit ? (
-                      "Update Machine"
-                    ) : (
-                      "Save Machine"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* ===== TABLE CARD ===== */}
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-            <div className="flex items-center gap-2">
-              <CardTitle>Machine List</CardTitle>
-              <Badge variant="secondary" className="rounded-full font-normal">
-                {machines.length}
-              </Badge>
-            </div>
-            <div className="relative w-full max-w-[220px]">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search machines..."
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="px-0 pb-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Machine Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Plant</TableHead>
-                  <TableHead>Division</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <TableRow key={i} className="hover:bg-transparent">
-                      <TableCell colSpan={6} className="py-3">
-                        <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : filteredMachines.length > 0 ? (
-                  filteredMachines.map((item) => {
-                    const mId = getMachineId(item);
-                    const mName = getMachineName(item);
-                    const mCode = getMachineCode(item);
-                    const pId = item.plantId ?? item.PlantId ?? "";
-                    const dId = item.divisionId ?? item.DivisionId ?? "";
-                    const mStatus = getMachineStatus(item);
-
-                    return (
-                      <TableRow
-                        key={mId}
-                        className="group transition-colors"
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-                              {getInitials(mName)}
-                            </div>
-                            {mName}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-                            {mCode}
-                          </span>
-                        </TableCell>
-                        <TableCell>{getPlantName(pId)}</TableCell>
-                        <TableCell>{getDivisionName(dId)}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              mStatus === "Active" ? "success" : "secondary"
-                            }
-                          >
-                            {mStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-emerald-600 hover:bg-emerald-100/50 hover:text-emerald-700"
-                              onClick={() => handleShowQR(item)}
-                            >
-                              <QrCode className="size-3.5" />
-                              QR
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(mId)}
-                            >
-                              <Pencil className="size-3.5" />
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => handleDelete(mId)}
-                            >
-                              <Trash2 className="size-3.5" />
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={6} className="h-48 text-center">
-                      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <div className="flex size-11 items-center justify-center rounded-full bg-muted">
-                          <Cog className="size-5" />
-                        </div>
-                        <p className="text-sm font-medium text-foreground">
-                          {search ? "No matching machines" : "No machines yet"}
-                        </p>
-                        <p className="text-xs">
-                          {search
-                            ? "Try a different name or code."
-                            : "Add your first machine using the form."}
-                        </p>
-                      </div>
+      {/* ================= TABLE CARD ================= */}
+      <Card className="border-border/60 shadow-sm">
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle>Machine List</CardTitle>
+            <Badge variant="secondary" className="rounded-full font-normal">
+              {machines.length}
+            </Badge>
+          </div>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search machines..."
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Machine Name</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Plant</TableHead>
+                <TableHead>Division</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i} className="hover:bg-transparent">
+                    <TableCell colSpan={6} className="py-3">
+                      <div className="h-4 w-full animate-pulse rounded bg-muted" />
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                ))
+              ) : filteredMachines.length > 0 ? (
+                filteredMachines.map((item) => {
+                  const mId = getMachineId(item);
+                  const mName = getMachineName(item);
+                  const mCode = getMachineCode(item);
+                  const pId = item.plantId ?? item.PlantId ?? "";
+                  const dId = item.divisionId ?? item.DivisionId ?? "";
+                  const mStatus = getMachineStatus(item);
+
+                  return (
+                    <TableRow
+                      key={mId}
+                      className="group transition-colors"
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                            {getInitials(mName)}
+                          </div>
+                          {mName}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                          {mCode}
+                        </span>
+                      </TableCell>
+                      <TableCell>{getPlantName(pId)}</TableCell>
+                      <TableCell>{getDivisionName(dId)}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            mStatus === "Active" ? "success" : "secondary"
+                          }
+                        >
+                          {mStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-emerald-600 hover:bg-emerald-100/50 hover:text-emerald-700"
+                            onClick={() => handleShowQR(item)}
+                          >
+                            <QrCode className="size-3.5" />
+                            QR
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(mId)}
+                          >
+                            <Pencil className="size-3.5" />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDelete(mId)}
+                          >
+                            <Trash2 className="size-3.5" />
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={6} className="h-48 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-muted">
+                        <Cog className="size-5" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {search ? "No matching machines" : "No machines yet"}
+                      </p>
+                      <p className="text-xs">
+                        {search
+                          ? "Try a different name or code."
+                          : "Add your first machine using the Add button."}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* ================= ADD / EDIT DIALOG ================= */}
+      <FormDialog
+        open={showForm}
+        onClose={closeForm}
+        onSubmit={handleSubmit}
+        icon={Cog}
+        isEdit={isEdit}
+        title={isEdit ? "Edit Machine" : "Add Machine"}
+        description={
+          isEdit
+            ? "Update the machine details below."
+            : "Fill in the details to add a new machine."
+        }
+        submitLabel={isEdit ? "Update Machine" : "Save Machine"}
+        saving={saving}
+      >
+        {/* MACHINE NAME */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="machineName">Machine Name <span className="text-destructive">*</span></Label>
+          <Input
+            id="machineName"
+            type="text"
+            name="machineName"
+            value={machine.machineName}
+            onChange={handleChange}
+            placeholder="Enter Machine Name"
+            maxLength={50}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.machineName}
+          />
+          <FormError message={fieldErrors.machineName} />
+        </div>
+
+        {/* MACHINE CODE */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="machineCode">Machine Code <span className="text-destructive">*</span></Label>
+          <Input
+            id="machineCode"
+            type="text"
+            name="machineCode"
+            value={machine.machineCode}
+            onChange={handleChange}
+            placeholder="Enter Machine Code"
+            maxLength={25}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.machineCode}
+          />
+          <FormError message={fieldErrors.machineCode} />
+        </div>
+
+        {/* PLANT */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="plantId">Plant <span className="text-destructive">*</span></Label>
+          <Select
+            value={machine.plantId}
+            onValueChange={handlePlantChange}
+            disabled={saving}
+          >
+            <SelectTrigger
+              id="plantId"
+              className="w-full"
+              aria-invalid={!!fieldErrors.plantId}
+            >
+              <SelectValue placeholder="Select Plant" />
+            </SelectTrigger>
+            <SelectContent>
+              {plants.map((plant) => {
+                const id =
+                  plant.plantID ?? plant.PlantID ?? plant.plantId ?? plant.id;
+                const name =
+                  plant.plantName ?? plant.PlantName ?? plant.name;
+
+                return (
+                  <SelectItem key={String(id)} value={String(id)}>
+                    {name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <FormError message={fieldErrors.plantId} />
+        </div>
+
+        {/* DIVISION */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="divisionId">Division <span className="text-destructive">*</span></Label>
+          <Select
+            value={machine.divisionId}
+            onValueChange={handleDivisionChange}
+            disabled={saving || !machine.plantId}
+          >
+            <SelectTrigger
+              id="divisionId"
+              className="w-full"
+              aria-invalid={!!fieldErrors.divisionId}
+            >
+              <SelectValue placeholder="Select Division" />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredDivisions.map((division) => {
+                const id =
+                  division.divisionId ??
+                  division.DivisionId ??
+                  division.divisionID ??
+                  division.DivisionID ??
+                  division.id;
+                const name =
+                  division.divisionName ??
+                  division.DivisionName ??
+                  division.name;
+
+                return (
+                  <SelectItem key={String(id)} value={String(id)}>
+                    {name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <FormError message={fieldErrors.divisionId} />
+        </div>
+
+        {/* STATUS */}
+        <StatusToggle
+          value={machine.status}
+          onChange={handleStatusChange}
+          disabled={saving}
+        />
+      </FormDialog>
 
       {/* =====================================
           QR CODE DIALOG

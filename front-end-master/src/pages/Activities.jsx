@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Check,
   ListChecks,
-  LoaderCircle,
   Pencil,
   RefreshCw,
   Search,
   Trash2,
+  Plus,
 } from "lucide-react";
 import PageHeader from "../components/page-header";
+import { useConfirm } from "../components/confirm-dialog";
+import { notifyError, notifySuccess } from "../lib/notify";
+import FormDialog from "../components/form-dialog";
 import FormError from "../components/form-error";
 import activityService from "../services/activityService";
 import componentService from "../services/componentsService";
@@ -18,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -58,7 +60,9 @@ function Activities() {
     status: "Active",
   });
 
+  const confirmAction = useConfirm();
   const [isEdit, setIsEdit] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -83,6 +87,7 @@ function Activities() {
       setActivities(response.data || []);
     } catch (err) {
       console.error("LOAD ACTIVITIES ERROR:", err);
+      notifyError(err, "Failed to load activities.");
     } finally {
       setLoading(false);
     }
@@ -97,6 +102,7 @@ function Activities() {
       setComponents(response.data || []);
     } catch (err) {
       console.error("LOAD COMPONENTS ERROR:", err);
+      notifyError(err, "Failed to load components.");
     }
   };
 
@@ -292,16 +298,18 @@ function Activities() {
 
       if (isEdit) {
         await activityService.updateActivity(activityId, requestData);
-        alert("Activity updated successfully");
+        notifySuccess("Activity updated successfully");
       } else {
         await activityService.createActivity(requestData);
-        alert("Activity created successfully");
+        notifySuccess("Activity created successfully");
       }
 
+      setShowForm(false);
       resetForm();
       await loadActivities();
     } catch (err) {
       console.error("SAVE ACTIVITY ERROR:", err);
+      notifyError(err, "Failed to save activity.");
     } finally {
       setSaving(false);
     }
@@ -334,13 +342,10 @@ function Activities() {
       });
 
       setIsEdit(true);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
+      setShowForm(true);
     } catch (err) {
       console.error("GET ACTIVITY ERROR:", err);
+      notifyError(err, "Failed to load activity details.");
     }
   };
 
@@ -348,19 +353,41 @@ function Activities() {
   // DELETE
   // =====================================================
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this activity?")) {
+    const confirmed = await confirmAction({
+      title: "Delete activity?",
+      message:
+        "Are you sure you want to delete this activity? This action cannot be undone.",
+      confirmText: "Delete",
+    });
+
+    if (!confirmed) {
       return;
     }
 
     try {
       await activityService.deleteActivity(id);
 
-      alert("Activity deleted successfully");
+      notifySuccess("Activity deleted successfully");
 
       await loadActivities();
     } catch (err) {
       console.error("DELETE ACTIVITY ERROR:", err);
+      notifyError(err, "Failed to delete activity.");
     }
+  };
+
+  // =====================================================
+  // OPEN / CLOSE ADD-EDIT DIALOG
+  // =====================================================
+  const handleAdd = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setShowForm(false);
+    resetForm();
   };
 
   // =====================================================
@@ -436,303 +463,273 @@ function Activities() {
           <RefreshCw className="size-4" />
           Refresh
         </Button>
+        <Button size="sm" onClick={handleAdd}>
+          <Plus className="size-4" />
+          Add Activity
+        </Button>
       </PageHeader>
 
-      {/* ================= CONTENT ================= */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
-        {/* ===== FORM CARD ===== */}
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                {isEdit ? (
-                  <Pencil className="size-4" />
-                ) : (
-                  <ListChecks className="size-4" />
-                )}
-              </div>
-              <div>
-                <CardTitle>{isEdit ? "Edit Activity" : "Add Activity"}</CardTitle>
-                <CardDescription>
-                  {isEdit
-                    ? "Update the activity details below."
-                    : "Fill in the details to add a new activity."}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-              {/* ACTIVITY NAME */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="activitiesName">Activity Name <span className="text-destructive">*</span></Label>
-                <Input
-                  id="activitiesName"
-                  type="text"
-                  name="activitiesName"
-                  value={activity.activitiesName}
-                  onChange={handleChange}
-                  placeholder="Enter Activity Name"
-                  maxLength={100}
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.activitiesName}
-                />
-                <FormError message={fieldErrors.activitiesName} />
-              </div>
-
-              {/* COMPONENT */}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="componentID">Component <span className="text-destructive">*</span></Label>
-                <Select
-                  value={String(activity.componentID)}
-                  onValueChange={handleComponentChange}
-                  disabled={saving}
-                >
-                  <SelectTrigger
-                    id="componentID"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.componentID}
+      {/* ================= TABLE CARD ================= */}
+      <Card className="border-border/60 shadow-sm">
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle>Activity List</CardTitle>
+            <Badge variant="secondary" className="rounded-full font-normal">
+              {activities.length}
+            </Badge>
+          </div>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search activities..."
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Activity</TableHead>
+                <TableHead>Component</TableHead>
+                <TableHead className="text-center">Cycle</TableHead>
+                <TableHead className="text-center">Idle</TableHead>
+                <TableHead className="text-center">Unutilised</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow
+                    key={i}
+                    className="hover:bg-transparent"
                   >
-                    <SelectValue placeholder="Select Component" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {components.map((comp) => {
-                      const id = comp.componentID ?? comp.ComponentID;
-                      const name = getComponentName(comp);
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.componentID} />
-              </div>
-
-              {/* TYPE */}
-              <div className="flex flex-col gap-2">
-                <Label>Type</Label>
-                <RadioGroup
-                  value={activity.type}
-                  onValueChange={handleTypeChange}
-                >
-                  {typeOptions.map((option) => (
-                    <div
-                      key={option}
-                      className="flex items-center gap-2"
-                    >
-                      <RadioGroupItem value={option} id={`type-${option}`} />
-                      <Label
-                        htmlFor={`type-${option}`}
-                        className="font-normal"
-                      >
-                        {option}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-                <FormError message={fieldErrors.type} />
-              </div>
-
-              {/* STATUS + BUTTONS */}
-              <div className="mt-1 flex flex-col gap-4">
-                <StatusToggle
-                  value={activity.status}
-                  onChange={handleStatusChange}
-                  disabled={saving}
-                />
-
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    disabled={saving}
-                    className="flex-1"
-                  >
-                    {saving ? (
-                      <>
-                        <LoaderCircle className="size-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : isEdit ? (
-                      "Update Activity"
-                    ) : (
-                      "Save Activity"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* ===== TABLE CARD ===== */}
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-            <div className="flex items-center gap-2">
-              <CardTitle>Activity List</CardTitle>
-              <Badge variant="secondary" className="rounded-full font-normal">
-                {activities.length}
-              </Badge>
-            </div>
-            <div className="relative w-full max-w-[220px]">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search activities..."
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="px-0 pb-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Activity</TableHead>
-                  <TableHead>Component</TableHead>
-                  <TableHead className="text-center">Cycle</TableHead>
-                  <TableHead className="text-center">Idle</TableHead>
-                  <TableHead className="text-center">Unutilised</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <TableRow
-                      key={i}
-                      className="hover:bg-transparent"
-                    >
-                      <TableCell colSpan={7} className="py-3">
-                        <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : filteredActivities.length > 0 ? (
-                  filteredActivities.map((item) => {
-                    const activityId = getActivityId(item);
-                    const activityName = getActivityName(item);
-                    const activityType = getActivityType(item);
-                    const componentId = getComponentId(item);
-                    const isActive = getActivityStatus(item);
-
-                    const selectedComponent = components.find(
-                      (component) =>
-                        Number(component.componentID ?? component.ComponentID) ===
-                        Number(componentId)
-                    );
-
-                    const componentName = selectedComponent
-                      ? getComponentName(selectedComponent)
-                      : componentId;
-
-                    return (
-                      <TableRow
-                        key={activityId}
-                        className="group transition-colors"
-                      >
-                        <TableCell className="max-w-48 font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-                              {getInitials(activityName)}
-                            </div>
-                            <span title={activityName}>
-                              {activityName}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-48 truncate">
-                          <span title={String(componentName)}>
-                            {String(componentName)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {isTypeMatched(activityType, "cycle") ? (
-                            <Check className="mx-auto size-4 text-emerald-600" />
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {isTypeMatched(activityType, "idle") ? (
-                            <Check className="mx-auto size-4 text-emerald-600" />
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {isTypeMatched(activityType, "unutilised") ? (
-                            <Check className="mx-auto size-4 text-emerald-600" />
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={isActive ? "success" : "secondary"}
-                          >
-                            {isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(activityId)}
-                            >
-                              <Pencil className="size-3.5" />
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => handleDelete(activityId)}
-                            >
-                              <Trash2 className="size-3.5" />
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      colSpan={7}
-                      className="h-48 text-center"
-                    >
-                      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                        <div className="flex size-11 items-center justify-center rounded-full bg-muted">
-                          <ListChecks className="size-5" />
-                        </div>
-                        <p className="text-sm font-medium text-foreground">
-                          {search
-                            ? "No matching activities"
-                            : "No activities yet"}
-                        </p>
-                        <p className="text-xs">
-                          {search
-                            ? "Try a different name."
-                            : "Add your first activity using the form."}
-                        </p>
-                      </div>
+                    <TableCell colSpan={7} className="py-3">
+                      <div className="h-4 w-full animate-pulse rounded bg-muted" />
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+                ))
+              ) : filteredActivities.length > 0 ? (
+                filteredActivities.map((item) => {
+                  const activityId = getActivityId(item);
+                  const activityName = getActivityName(item);
+                  const activityType = getActivityType(item);
+                  const componentId = getComponentId(item);
+                  const isActive = getActivityStatus(item);
+
+                  const selectedComponent = components.find(
+                    (component) =>
+                      Number(component.componentID ?? component.ComponentID) ===
+                      Number(componentId)
+                  );
+
+                  const componentName = selectedComponent
+                    ? getComponentName(selectedComponent)
+                    : componentId;
+
+                  return (
+                    <TableRow
+                      key={activityId}
+                      className="group transition-colors"
+                    >
+                      <TableCell className="max-w-48 font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+                            {getInitials(activityName)}
+                          </div>
+                          <span title={activityName}>
+                            {activityName}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-48 truncate">
+                        <span title={String(componentName)}>
+                          {String(componentName)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {isTypeMatched(activityType, "cycle") ? (
+                          <Check className="mx-auto size-4 text-emerald-600" />
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {isTypeMatched(activityType, "idle") ? (
+                          <Check className="mx-auto size-4 text-emerald-600" />
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {isTypeMatched(activityType, "unutilised") ? (
+                          <Check className="mx-auto size-4 text-emerald-600" />
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={isActive ? "success" : "secondary"}
+                        >
+                          {isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(activityId)}
+                          >
+                            <Pencil className="size-3.5" />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDelete(activityId)}
+                          >
+                            <Trash2 className="size-3.5" />
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={7}
+                    className="h-48 text-center"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-muted">
+                        <ListChecks className="size-5" />
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {search
+                          ? "No matching activities"
+                          : "No activities yet"}
+                      </p>
+                      <p className="text-xs">
+                        {search
+                          ? "Try a different name."
+                          : "Add your first activity using the Add button."}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* ================= ADD / EDIT DIALOG ================= */}
+      <FormDialog
+        open={showForm}
+        onClose={closeForm}
+        onSubmit={handleSubmit}
+        icon={ListChecks}
+        isEdit={isEdit}
+        title={isEdit ? "Edit Activity" : "Add Activity"}
+        description={
+          isEdit
+            ? "Update the activity details below."
+            : "Fill in the details to add a new activity."
+        }
+        submitLabel={isEdit ? "Update Activity" : "Save Activity"}
+        saving={saving}
+      >
+        {/* ACTIVITY NAME */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="activitiesName">Activity Name <span className="text-destructive">*</span></Label>
+          <Input
+            id="activitiesName"
+            type="text"
+            name="activitiesName"
+            value={activity.activitiesName}
+            onChange={handleChange}
+            placeholder="Enter Activity Name"
+            maxLength={100}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.activitiesName}
+          />
+          <FormError message={fieldErrors.activitiesName} />
+        </div>
+
+        {/* COMPONENT */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="componentID">Component <span className="text-destructive">*</span></Label>
+          <Select
+            value={String(activity.componentID)}
+            onValueChange={handleComponentChange}
+            disabled={saving}
+          >
+            <SelectTrigger
+              id="componentID"
+              className="w-full"
+              aria-invalid={!!fieldErrors.componentID}
+            >
+              <SelectValue placeholder="Select Component" />
+            </SelectTrigger>
+            <SelectContent>
+              {components.map((comp) => {
+                const id = comp.componentID ?? comp.ComponentID;
+                const name = getComponentName(comp);
+
+                return (
+                  <SelectItem key={String(id)} value={String(id)}>
+                    {name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          <FormError message={fieldErrors.componentID} />
+        </div>
+
+        {/* TYPE */}
+        <div className="flex flex-col gap-2">
+          <Label>Type</Label>
+          <RadioGroup
+            value={activity.type}
+            onValueChange={handleTypeChange}
+          >
+            {typeOptions.map((option) => (
+              <div
+                key={option}
+                className="flex items-center gap-2"
+              >
+                <RadioGroupItem value={option} id={`type-${option}`} />
+                <Label
+                  htmlFor={`type-${option}`}
+                  className="font-normal"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+          <FormError message={fieldErrors.type} />
+        </div>
+
+        {/* STATUS */}
+        <StatusToggle
+          value={activity.status}
+          onChange={handleStatusChange}
+          disabled={saving}
+        />
+      </FormDialog>
     </div>
   );
 }

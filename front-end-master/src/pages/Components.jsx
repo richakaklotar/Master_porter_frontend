@@ -1,8 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
   Component as ComponentIcon,
-  LoaderCircle,
   Pencil,
   Plus,
   RefreshCw,
@@ -10,23 +8,17 @@ import {
   Trash2,
 } from "lucide-react";
 import PageHeader from "../components/page-header";
+import { useConfirm } from "../components/confirm-dialog";
+import { notifyError, notifySuccess } from "../lib/notify";
+import FormDialog from "../components/form-dialog";
 import FormError from "../components/form-error";
 import componentsService from "../services/componentsService";
 import projectService from "../services/projectService";
 import machineService from "../services/machineService";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -55,9 +47,6 @@ function Components() {
 
   const [search, setSearch] = useState("");
 
-  const [showErrorPopup, setShowErrorPopup] = useState(false);
-  const [saveError, setSaveError] = useState("");
-
   const [showForm, setShowForm] = useState(false);
 
   const [component, setComponent] = useState({
@@ -74,6 +63,7 @@ function Components() {
     status: "Active",
   });
 
+  const confirmAction = useConfirm();
   const [isEdit, setIsEdit] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -90,65 +80,6 @@ function Components() {
       delete next[name];
       return next;
     });
-  };
-
-  // =====================================================
-  // PARSE API ERROR
-  // =====================================================
-  const parseApiError = (err) => {
-    console.error("API ERROR:", err);
-
-    const apiData = err?.response?.data;
-
-    if (apiData?.errors && typeof apiData.errors === "object") {
-      const messages = Object.entries(apiData.errors)
-        .flatMap(([field, fieldErrors]) => {
-          if (Array.isArray(fieldErrors)) {
-            return fieldErrors.map((message) => {
-              const fieldName = field.charAt(0).toUpperCase() + field.slice(1);
-
-              return `${fieldName}: ${message}`;
-            });
-          }
-
-          return [`${field}: ${fieldErrors}`];
-        })
-        .filter(Boolean);
-
-      if (messages.length > 0) {
-        return messages.join("\n");
-      }
-    }
-
-    if (apiData?.detail) {
-      return apiData.detail;
-    }
-
-    if (apiData?.message) {
-      return apiData.message;
-    }
-
-    if (apiData?.error) {
-      return apiData.error;
-    }
-
-    if (apiData?.title) {
-      return apiData.title;
-    }
-
-    if (typeof apiData === "string") {
-      return apiData;
-    }
-
-    return err?.message || "An unexpected error occurred.";
-  };
-
-  // =====================================================
-  // SHOW SAVE ERROR POPUP
-  // =====================================================
-  const showSaveError = (message) => {
-    setSaveError(String(message || "An unexpected error occurred."));
-    setShowErrorPopup(true);
   };
 
   // =====================================================
@@ -206,7 +137,8 @@ function Components() {
 
         setProjects(data);
       } else {
-        console.warn("Project API failed:", projectRes.reason);
+        console.error("Project API failed:", projectRes.reason);
+        notifyError(projectRes.reason, "Failed to load projects.");
       }
 
       // MACHINES
@@ -221,10 +153,12 @@ function Components() {
 
         setMachines(data);
       } else {
-        console.warn("Machine API failed:", machineRes.reason);
+        console.error("Machine API failed:", machineRes.reason);
+        notifyError(machineRes.reason, "Failed to load machines.");
       }
     } catch (err) {
       console.error("COMPONENT LOAD ERROR:", err);
+      notifyError(err, "Failed to load components.");
     } finally {
       setLoading(false);
     }
@@ -552,14 +486,14 @@ function Components() {
           requestData,
         );
 
-        alert("Component updated successfully.");
+        notifySuccess("Component updated successfully.");
       }
 
       // CREATE
       else {
         await componentsService.createComponent(requestData);
 
-        alert("Component created successfully.");
+        notifySuccess("Component created successfully.");
       }
 
       resetForm();
@@ -568,8 +502,7 @@ function Components() {
       await loadData();
     } catch (err) {
       console.error("COMPONENT SAVE ERROR:", err);
-
-      showSaveError(parseApiError(err));
+      notifyError(err, "Failed to save component.");
     } finally {
       setSaving(false);
     }
@@ -654,6 +587,7 @@ function Components() {
       setShowForm(true);
     } catch (err) {
       console.error("GET COMPONENT ERROR:", err);
+      notifyError(err, "Failed to load component details.");
     } finally {
       setSaving(false);
     }
@@ -667,9 +601,12 @@ function Components() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this component?",
-    );
+    const confirmed = await confirmAction({
+      title: "Delete component?",
+      message:
+        "Are you sure you want to delete this component? This action cannot be undone.",
+      confirmText: "Delete",
+    });
 
     if (!confirmed) {
       return;
@@ -680,11 +617,12 @@ function Components() {
 
       await componentsService.deleteComponent(Number(id));
 
-      alert("Component deleted successfully.");
+      notifySuccess("Component deleted successfully.");
 
       await loadData();
     } catch (err) {
       console.error("DELETE COMPONENT ERROR:", err);
+      notifyError(err, "Failed to delete component.");
     } finally {
       setLoading(false);
     }
@@ -800,14 +738,14 @@ function Components() {
 
       {/* ================= TABLE CARD ================= */}
       <Card className="border-border/60 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <CardTitle>Component List</CardTitle>
             <Badge variant="secondary" className="rounded-full font-normal">
               {components.length}
             </Badge>
           </div>
-          <div className="relative w-full max-w-[220px]">
+          <div className="relative w-full sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -959,310 +897,236 @@ function Components() {
       {/* =====================================================
           ADD / EDIT DIALOG
       ===================================================== */}
-      <Dialog
+      <FormDialog
         open={showForm}
-        onOpenChange={(open) => {
-          if (!open) closeForm();
-        }}
+        onClose={closeForm}
+        onSubmit={handleSubmit}
+        icon={ComponentIcon}
+        isEdit={isEdit}
+        title={isEdit ? "Edit Component" : "Add Component"}
+        description={
+          isEdit
+            ? "Update the component details below."
+            : "Fill in the details to add a new component."
+        }
+        submitLabel={isEdit ? "Update Component" : "Save Component"}
+        saving={saving}
+        maxWidth="md"
       >
-        <DialogContent className="!w-[min(42rem,calc(100vw_-_2rem))] max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader className="border-b pb-3">
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                {isEdit ? (
-                  <Pencil className="size-4" />
-                ) : (
-                  <ComponentIcon className="size-4" />
-                )}
-              </div>
-              <div>
-                <DialogTitle>
-                  {isEdit ? "Edit Component" : "Add Component"}
-                </DialogTitle>
-                <DialogDescription>
-                  {isEdit
-                    ? "Update the component details below."
-                    : "Fill in the details to add a new component."}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
+        {/* COMPONENT NAME */}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="componentName">
+            Component Name <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="componentName"
+            type="text"
+            name="componentName"
+            value={component.componentName}
+            onChange={handleChange}
+            placeholder="Enter Component Name"
+            maxLength={100}
+            disabled={saving}
+            aria-invalid={!!fieldErrors.componentName}
+          />
+          <FormError message={fieldErrors.componentName} />
+        </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-4 p-[10px]"
-          >
-            {/* COMPONENT NAME */}
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="componentName">
-                Component Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="componentName"
-                type="text"
-                name="componentName"
-                value={component.componentName}
-                onChange={handleChange}
-                placeholder="Enter Component Name"
-                maxLength={100}
-                disabled={saving}
-                aria-invalid={!!fieldErrors.componentName}
-              />
-              <FormError message={fieldErrors.componentName} />
-            </div>
+        {/* STANDARD + TOP */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="standardHours">
+              Standard Hours <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="standardHours"
+              type="number"
+              name="standardHours"
+              value={component.standardHours}
+              onChange={handleChange}
+              placeholder="0"
+              min="0"
+              disabled={saving || hasOtherHours}
+              aria-invalid={!!fieldErrors.standardHours}
+            />
+            <FormError message={fieldErrors.standardHours} />
+          </div>
 
-            {/* STANDARD + TOP */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="standardHours">
-                  Standard Hours <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="standardHours"
-                  type="number"
-                  name="standardHours"
-                  value={component.standardHours}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  disabled={saving || hasOtherHours}
-                  aria-invalid={!!fieldErrors.standardHours}
-                />
-                <FormError message={fieldErrors.standardHours} />
-              </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="topHours">
+              Top Hours <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="topHours"
+              type="number"
+              name="topHours"
+              value={component.topHours}
+              onChange={handleChange}
+              placeholder="0"
+              min="0"
+              disabled={saving || hasStandardHours}
+              aria-invalid={!!fieldErrors.topHours}
+            />
+            <FormError message={fieldErrors.topHours} />
+          </div>
+        </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="topHours">
-                  Top Hours <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="topHours"
-                  type="number"
-                  name="topHours"
-                  value={component.topHours}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  disabled={saving || hasStandardHours}
-                  aria-invalid={!!fieldErrors.topHours}
-                />
-                <FormError message={fieldErrors.topHours} />
-              </div>
-            </div>
+        <FormError message={fieldErrors.hours} />
 
-            <FormError message={fieldErrors.hours} />
+        {/* BOTTOM + SIDE */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="bottomHours">
+              Bottom Hours <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="bottomHours"
+              type="number"
+              name="bottomHours"
+              value={component.bottomHours}
+              onChange={handleChange}
+              placeholder="0"
+              min="0"
+              disabled={saving || hasStandardHours}
+              aria-invalid={!!fieldErrors.bottomHours}
+            />
+            <FormError message={fieldErrors.bottomHours} />
+          </div>
 
-            {/* BOTTOM + SIDE */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="bottomHours">
-                  Bottom Hours <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="bottomHours"
-                  type="number"
-                  name="bottomHours"
-                  value={component.bottomHours}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  disabled={saving || hasStandardHours}
-                  aria-invalid={!!fieldErrors.bottomHours}
-                />
-                <FormError message={fieldErrors.bottomHours} />
-              </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sideHours">
+              Side Hours <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="sideHours"
+              type="number"
+              name="sideHours"
+              value={component.sideHours}
+              onChange={handleChange}
+              placeholder="0"
+              min="0"
+              disabled={saving || hasStandardHours}
+              aria-invalid={!!fieldErrors.sideHours}
+            />
+            <FormError message={fieldErrors.sideHours} />
+          </div>
+        </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="sideHours">
-                  Side Hours <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="sideHours"
-                  type="number"
-                  name="sideHours"
-                  value={component.sideHours}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  disabled={saving || hasStandardHours}
-                  aria-invalid={!!fieldErrors.sideHours}
-                />
-                <FormError message={fieldErrors.sideHours} />
-              </div>
-            </div>
+        {/* STOCK + SERIES */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="stock">
+              Stock <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="stock"
+              type="number"
+              name="stock"
+              value={component.stock}
+              onChange={handleChange}
+              placeholder="Enter Stock"
+              min="0"
+              disabled={saving}
+              aria-invalid={!!fieldErrors.stock}
+            />
+            <FormError message={fieldErrors.stock} />
+          </div>
 
-            {/* STOCK + SERIES */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="stock">
-                  Stock <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="stock"
-                  type="number"
-                  name="stock"
-                  value={component.stock}
-                  onChange={handleChange}
-                  placeholder="Enter Stock"
-                  min="0"
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.stock}
-                />
-                <FormError message={fieldErrors.stock} />
-              </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="seriesNo">
+              Series No <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="seriesNo"
+              type="text"
+              name="seriesNo"
+              value={component.seriesNo}
+              onChange={handleChange}
+              placeholder="Enter Series No"
+              maxLength={50}
+              disabled={saving}
+              aria-invalid={!!fieldErrors.seriesNo}
+            />
+            <FormError message={fieldErrors.seriesNo} />
+          </div>
+        </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="seriesNo">
-                  Series No <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="seriesNo"
-                  type="text"
-                  name="seriesNo"
-                  value={component.seriesNo}
-                  onChange={handleChange}
-                  placeholder="Enter Series No"
-                  maxLength={50}
-                  disabled={saving}
-                  aria-invalid={!!fieldErrors.seriesNo}
-                />
-                <FormError message={fieldErrors.seriesNo} />
-              </div>
-            </div>
-
-            {/* PROJECT + MACHINE */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="projectID">
-                  Project <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={component.projectID}
-                  onValueChange={handleProjectChange}
-                  disabled={saving}
-                >
-                  <SelectTrigger
-                    id="projectID"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.projectID}
-                  >
-                    <SelectValue placeholder="Select Project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p) => {
-                      const id = getEntityProperty(p, "projectID");
-                      const name = getEntityProperty(p, "projectName") || "-";
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.projectID} />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="machineID">
-                  Machine <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={component.machineID}
-                  onValueChange={handleMachineChange}
-                  disabled={saving}
-                >
-                  <SelectTrigger
-                    id="machineID"
-                    className="w-full"
-                    aria-invalid={!!fieldErrors.machineID}
-                  >
-                    <SelectValue placeholder="Select Machine" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {machines.map((m) => {
-                      const id = getEntityProperty(m, "machineID");
-                      const name = getEntityProperty(m, "machineName") || "-";
-
-                      return (
-                        <SelectItem key={String(id)} value={String(id)}>
-                          {name}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <FormError message={fieldErrors.machineID} />
-              </div>
-            </div>
-
-            {/* STATUS */}
-            <div className="rounded-md border px-3 py-2">
-              <StatusToggle
-                value={component.status}
-                onChange={handleStatusChange}
-                disabled={saving}
-              />
-            </div>
-
-            {/* BUTTONS */}
-            <DialogFooter className="border-t pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={closeForm}
-                disabled={saving}
+        {/* PROJECT + MACHINE */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="projectID">
+              Project <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={component.projectID}
+              onValueChange={handleProjectChange}
+              disabled={saving}
+            >
+              <SelectTrigger
+                id="projectID"
+                className="w-full"
+                aria-invalid={!!fieldErrors.projectID}
               >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : isEdit ? (
-                  "Update"
-                ) : (
-                  "Save"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <SelectValue placeholder="Select Project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => {
+                  const id = getEntityProperty(p, "projectID");
+                  const name = getEntityProperty(p, "projectName") || "-";
 
-      {/* =====================================================
-          SAVE / UPDATE ERROR DIALOG
-      ===================================================== */}
-      <Dialog open={showErrorPopup} onOpenChange={setShowErrorPopup}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {isEdit ? "Update Failed" : "Save Failed"}
-            </DialogTitle>
-          </DialogHeader>
+                  return (
+                    <SelectItem key={String(id)} value={String(id)}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <FormError message={fieldErrors.projectID} />
+          </div>
 
-          <Alert variant="destructive">
-            <AlertCircle className="size-4" />
-            <AlertTitle>Action could not be completed</AlertTitle>
-            <AlertDescription>
-              {String(saveError)
-                .split("\n")
-                .map((message, index) => (
-                  <React.Fragment key={index}>
-                    {message}
-                    {index < String(saveError).split("\n").length - 1 && <br />}
-                  </React.Fragment>
-                ))}
-            </AlertDescription>
-          </Alert>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="machineID">
+              Machine <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={component.machineID}
+              onValueChange={handleMachineChange}
+              disabled={saving}
+            >
+              <SelectTrigger
+                id="machineID"
+                className="w-full"
+                aria-invalid={!!fieldErrors.machineID}
+              >
+                <SelectValue placeholder="Select Machine" />
+              </SelectTrigger>
+              <SelectContent>
+                {machines.map((m) => {
+                  const id = getEntityProperty(m, "machineID");
+                  const name = getEntityProperty(m, "machineName") || "-";
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowErrorPopup(false)}>
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                  return (
+                    <SelectItem key={String(id)} value={String(id)}>
+                      {name}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <FormError message={fieldErrors.machineID} />
+          </div>
+        </div>
+
+        {/* STATUS */}
+        <div className="rounded-md border px-3 py-2">
+          <StatusToggle
+            value={component.status}
+            onChange={handleStatusChange}
+            disabled={saving}
+          />
+        </div>
+      </FormDialog>
     </div>
   );
 }
