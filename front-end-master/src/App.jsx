@@ -20,10 +20,11 @@ import {
   BadgeCheck,
   Users,
   ClipboardList,
+  CalendarRange,
+  BarChart3,
   Menu,
   LayoutDashboard,
   X,
-  ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { PageHeaderSlotContext } from "@/components/page-header";
 
 import Plant from "./pages/Plant";
 import Division from "./pages/Division";
@@ -45,10 +47,11 @@ import Shifts from "./pages/Shifts";
 import Designation from "./pages/Designation";
 import Employee from "./pages/Employee";
 import JobCard from "./pages/JobCard";
+import Planner from "./pages/Planner";
+import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import { isAuthenticated, logout } from "./lib/auth";
-import {useMediaQuery,useTheme} from "@mui/material";
-
+import {useMediaQuery, useTheme} from "@mui/material";
 const NAV_ITEMS = [
   { to: "/plants", label: "Plants", icon: Factory },
   { to: "/divisions", label: "Divisions", icon: Boxes },
@@ -61,6 +64,8 @@ const NAV_ITEMS = [
   { to: "/designations", label: "Designations", icon: BadgeCheck },
   { to: "/employees", label: "Employees", icon: Users },
   { to: "/job-card", label: "Job Card", icon: ClipboardList },
+  { to: "/planner", label: "Planner", icon: CalendarRange },
+  { to: "/reports", label: "Reports", icon: BarChart3 },
 ];
 
 function Brand({ collapsed }) {
@@ -234,11 +239,11 @@ function AppShell() {
       return false;
     }
   });
+  const [headerSlot, setHeaderSlot] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
-
-  const theme = useTheme();
-  const isSmallDevice = useMediaQuery(theme.breakpoints.down("md"));
+  const theme  = useTheme();
+  const isSmallDevice = useMediaQuery(theme.breakpoints.down('md'));
 
   // Mobile drawer: lock page scroll while open, close on Escape
   useEffect(() => {
@@ -276,10 +281,6 @@ function AppShell() {
     navigate("/login", { replace: true });
   };
 
-  const current = NAV_ITEMS.find((item) =>
-    location.pathname.startsWith(item.to)
-  );
-
   const contentPadding = collapsed ? "lg:pl-[4.5rem]" : "lg:pl-64";
 
   const toggleCollapsed = () =>
@@ -293,7 +294,7 @@ function AppShell() {
     });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-background to-violet-50">
+    <div className="flex h-dvh flex-col overflow-hidden bg-gradient-to-br from-indigo-50 via-background to-violet-50">
       {/* ============ DESKTOP SIDEBAR ============ */}
       <aside
         className={cn(
@@ -305,45 +306,40 @@ function AppShell() {
       </aside>
 
       {/* ============ TOP HEADER ============ */}
-      <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header className="z-20 shrink-0 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div
           className={cn(
-            "flex h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:h-16",
+            "flex h-14 items-center gap-3 px-4 sm:px-6 lg:h-16",
             contentPadding,
             "transition-[padding-left]"
           )}
         >
-          <div className="flex min-w-0 items-center gap-2">
-            {isSmallDevice && <Button
-              variant="outline"
-              size="icon"
-              aria-label="Open menu"
-              className="lg:hidden"
-              onClick={() => setMenuOpen(true)}
-            >
-              <Menu className="size-4" />
-            </Button>}
-            <Button
-              variant="contained"
-              size="icon"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="hidden lg:inline-flex"
-              onClick={toggleCollapsed}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="size-4" />
-              ) : (
-                <PanelLeftClose className="size-4" />
-              )}
-            </Button>
-            <div className="flex min-w-0 items-center gap-1.5 text-sm">
-              <span className="hidden text-muted-foreground sm:inline">
-                Masters
-              </span>
-              <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground sm:block" />
-              <span className="truncate font-medium">{current?.label}</span>
-            </div>
-          </div>
+          {/* Desktop: collapse toggle on the left */}
+          {!isSmallDevice && <Button
+            variant="contained"
+            size="icon"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="shrink-0"
+            onClick={toggleCollapsed}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
+          </Button>}
+          {/* Each page's <PageHeader> renders into this slot */}
+          <div ref={setHeaderSlot} className="flex min-w-0 flex-1" />
+          {/* Mobile / tablet: menu button on the right */}
+          {isSmallDevice && <Button
+            variant="outline"
+            size="icon"
+            aria-label="Open menu"
+            className="shrink-0"
+            onClick={() => setMenuOpen(true)}
+          >
+            <Menu className="size-4" />
+          </Button>}
           {/* <div className="flex items-center gap-2">
             <div className="hidden items-center whitespace-nowrap rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 md:flex">
               <span className="size-1.5 rounded-full bg-emerald-500" />
@@ -387,8 +383,9 @@ function AppShell() {
       )}
 
       {/* ============ MAIN CONTENT ============ */}
-      <div className={cn(contentPadding, "transition-[padding-left]")}>
-        <main className="mx-auto w-full min-w-0 p-3 sm:p-6 lg:p-8">
+      <div className={cn(contentPadding, "flex min-h-0 flex-1 flex-col transition-[padding-left]")}>
+        <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto p-3">
+          <PageHeaderSlotContext.Provider value={headerSlot}>
           <Routes>
             <Route path="/plants" element={<Plant />} />
             <Route path="/divisions" element={<Division />} />
@@ -401,8 +398,11 @@ function AppShell() {
             <Route path="/designations" element={<Designation />} />
             <Route path="/employees" element={<Employee />} />
             <Route path="/job-card" element={<JobCard />} />
+            <Route path="/planner" element={<Planner />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="*" element={<Navigate to="/plants" replace />} />
           </Routes>
+          </PageHeaderSlotContext.Provider>
         </main>
       </div>
     </div>

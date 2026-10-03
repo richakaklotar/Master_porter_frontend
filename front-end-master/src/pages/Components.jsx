@@ -52,6 +52,7 @@ function Components() {
   const [component, setComponent] = useState({
     componentID: 0,
     componentName: "",
+    componentCode: "",
     standardHours: "",
     topHours: "",
     bottomHours: "",
@@ -390,6 +391,11 @@ function Components() {
         "Component Name already exists. Please enter a different Component Name.";
     }
 
+    // Component Code
+    if (!component.componentCode.trim()) {
+      errors.componentCode = "Component Code is required.";
+    }
+
     // Series No
     if (!seriesNo) {
       errors.seriesNo = "Series No is required.";
@@ -465,6 +471,7 @@ function Components() {
       const requestData = {
         componentID: Number(component.componentID || 0),
         componentName: component.componentName.trim(),
+        componentCode: component.componentCode.trim(),
         standardHours:
           component.standardHours === "" ? 0 : Number(component.standardHours),
         topHours: component.topHours === "" ? 0 : Number(component.topHours),
@@ -569,6 +576,7 @@ function Components() {
       setComponent({
         componentID: Number(getEntityProperty(data, "componentID") ?? id),
         componentName: getEntityProperty(data, "componentName") ?? "",
+        componentCode: getEntityProperty(data, "componentCode") ?? "",
         standardHours: standardValue,
         topHours: topValue,
         bottomHours: bottomValue,
@@ -635,6 +643,7 @@ function Components() {
     setComponent({
       componentID: 0,
       componentName: "",
+      componentCode: "",
       standardHours: "",
       topHours: "",
       bottomHours: "",
@@ -660,7 +669,8 @@ function Components() {
     return components.filter((item) => {
       const a = (getEntityProperty(item, "componentName") || "").toLowerCase();
       const b = (getEntityProperty(item, "seriesNo") || "").toLowerCase();
-      return a.includes(term) || b.includes(term);
+      const c = (getEntityProperty(item, "componentCode") || "").toLowerCase();
+      return a.includes(term) || b.includes(term) || c.includes(term);
     });
   }, [components, search]);
 
@@ -714,7 +724,7 @@ function Components() {
   };
 
   return (
-    <div className="w-full">
+    <div className="flex h-full min-h-[28rem] w-full flex-col">
       {/* ================= HEADER ================= */}
       <PageHeader
         icon={ComponentIcon}
@@ -737,7 +747,7 @@ function Components() {
       </PageHeader>
 
       {/* ================= TABLE CARD ================= */}
-      <Card className="border-border/60 shadow-sm">
+      <Card className="min-h-0 flex-1 border-border/60 shadow-sm">
         <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <CardTitle>Component List</CardTitle>
@@ -755,11 +765,12 @@ function Components() {
             />
           </div>
         </CardHeader>
-        <CardContent className="px-0 pb-0">
+        <CardContent className="flex min-h-0 flex-1 flex-col px-0 pb-0">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Component</TableHead>
+                <TableHead>Code</TableHead>
                 <TableHead>Std. Hrs</TableHead>
                 <TableHead>Top Hrs</TableHead>
                 <TableHead>Bottom Hrs</TableHead>
@@ -776,7 +787,7 @@ function Components() {
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i} className="hover:bg-transparent">
-                    <TableCell colSpan={11} className="py-3">
+                    <TableCell colSpan={12} className="py-3">
                       <div className="h-4 w-full animate-pulse rounded bg-muted" />
                     </TableCell>
                   </TableRow>
@@ -814,6 +825,11 @@ function Components() {
                             {String(name)}
                           </span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                          {getEntityProperty(item, "componentCode") || "-"}
+                        </span>
                       </TableCell>
                       <TableCell>{standardHours ?? "-"}</TableCell>
                       <TableCell>{topHours ?? "-"}</TableCell>
@@ -870,7 +886,7 @@ function Components() {
                 })
               ) : (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={11} className="h-48 text-center">
+                  <TableCell colSpan={12} className="h-48 text-center">
                     <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                       <div className="flex size-11 items-center justify-center rounded-full bg-muted">
                         <ComponentIcon className="size-5" />
@@ -913,30 +929,52 @@ function Components() {
         saving={saving}
         maxWidth="md"
       >
-        {/* COMPONENT NAME */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="componentName">
-            Component Name <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="componentName"
-            type="text"
-            name="componentName"
-            value={component.componentName}
-            onChange={handleChange}
-            placeholder="Enter Component Name"
-            maxLength={100}
-            disabled={saving}
-            aria-invalid={!!fieldErrors.componentName}
-          />
-          <FormError message={fieldErrors.componentName} />
+        {/* COMPONENT NAME + CODE */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="componentName">
+              Component Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="componentName"
+              type="text"
+              name="componentName"
+              value={component.componentName}
+              onChange={handleChange}
+              placeholder="Enter Component Name"
+              maxLength={100}
+              disabled={saving}
+              aria-invalid={!!fieldErrors.componentName}
+            />
+            <FormError message={fieldErrors.componentName} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="componentCode">
+              Component Code <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="componentCode"
+              type="text"
+              name="componentCode"
+              value={component.componentCode}
+              onChange={handleChange}
+              placeholder="Enter Component Code"
+              maxLength={25}
+              disabled={saving}
+              aria-invalid={!!fieldErrors.componentCode}
+              className="uppercase placeholder:normal-case"
+            />
+            <FormError message={fieldErrors.componentCode} />
+          </div>
         </div>
 
         {/* STANDARD + TOP */}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="standardHours">
-              Standard Hours <span className="text-destructive">*</span>
+              Standard Hours{" "}
+              {!hasOtherHours && <span className="text-destructive">*</span>}
             </Label>
             <Input
               id="standardHours"
@@ -954,7 +992,8 @@ function Components() {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="topHours">
-              Top Hours <span className="text-destructive">*</span>
+              Top Hours{" "}
+              {!hasStandardHours && <span className="text-destructive">*</span>}
             </Label>
             <Input
               id="topHours"
@@ -977,7 +1016,8 @@ function Components() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bottomHours">
-              Bottom Hours <span className="text-destructive">*</span>
+              Bottom Hours{" "}
+              {!hasStandardHours && <span className="text-destructive">*</span>}
             </Label>
             <Input
               id="bottomHours"
@@ -995,7 +1035,8 @@ function Components() {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sideHours">
-              Side Hours <span className="text-destructive">*</span>
+              Side Hours{" "}
+              {!hasStandardHours && <span className="text-destructive">*</span>}
             </Label>
             <Input
               id="sideHours"

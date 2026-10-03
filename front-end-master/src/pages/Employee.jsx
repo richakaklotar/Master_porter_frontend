@@ -627,7 +627,7 @@ function Employee() {
   };
 
   return (
-    <div className="w-full">
+    <div className="flex h-full min-h-[28rem] w-full flex-col">
       {/* ================= HEADER ================= */}
       <PageHeader
         icon={Users}
@@ -650,7 +650,7 @@ function Employee() {
       </PageHeader>
 
       {/* ================= TABLE CARD ================= */}
-      <Card className="border-border/60 shadow-sm">
+      <Card className="min-h-0 flex-1 border-border/60 shadow-sm">
         <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <CardTitle>Employee List</CardTitle>
@@ -671,7 +671,7 @@ function Employee() {
             />
           </div>
         </CardHeader>
-        <CardContent className="px-0 pb-0">
+        <CardContent className="flex min-h-0 flex-1 flex-col px-0 pb-0">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">

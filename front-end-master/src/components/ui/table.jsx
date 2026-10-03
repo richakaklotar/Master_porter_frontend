@@ -20,7 +20,7 @@ const tableSx = {
 
 function Table({ className, ...props }) {
   return (
-    <div className="relative w-full overflow-hidden overflow-x-auto rounded-xl border border-border/60">
+    <div className="relative min-h-0 w-full flex-1 overflow-auto rounded-xl border border-border/60">
       <MuiTable
         size="small"
         data-slot="table"
@@ -62,7 +62,7 @@ function TableHead({ className, ...props }) {
       scope="col"
       data-slot="table-head"
       className={cn(
-        "h-11 px-2 text-left align-middle text-[11px] font-semibold tracking-[0.05em] whitespace-nowrap",
+        "sticky top-0 z-10 h-11 bg-muted px-2 text-left align-middle text-[11px] font-semibold tracking-[0.05em] whitespace-nowrap",
         className,
       )}
       sx={{ color: "var(--muted-foreground)", fontWeight: 600 }}

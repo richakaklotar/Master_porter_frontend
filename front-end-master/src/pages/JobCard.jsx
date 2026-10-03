@@ -15,6 +15,7 @@ import {
 import PageHeader from "../components/page-header";
 import FormError from "../components/form-error";
 import { notifyError, notifySuccess } from "../lib/notify";
+import { loadJobCards, saveJobCards } from "../lib/local-store";
 import shiftService from "../services/shiftService";
 import projectService from "../services/projectService";
 import componentsService from "../services/componentsService";
@@ -269,7 +270,7 @@ function JobCard() {
 
   const [job, setJob] = useState(EMPTY_JOB);
   const [machine, setMachine] = useState(null);
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState(loadJobCards);
   const [fieldErrors, setFieldErrors] = useState({});
   const [showScanner, setShowScanner] = useState(false);
 
@@ -471,10 +472,13 @@ function JobCard() {
       return;
     }
 
-    setJobs((prev) => [
+    updateJobs((prev) => [
       {
         id: Date.now(),
         date: today,
+        shiftID: job.shiftID,
+        projectID: job.projectID,
+        componentID: job.componentID,
         machineName: machine?.machineName || "-",
         operator: job.operator.trim(),
         shift: getName(shifts, "shiftID", "shiftName", job.shiftID),
@@ -510,6 +514,15 @@ function JobCard() {
     resetForm();
   };
 
+  // Job cards are kept in localStorage (read by the Reports page)
+  const updateJobs = (updater) => {
+    setJobs((prev) => {
+      const next = updater(prev);
+      saveJobCards(next);
+      return next;
+    });
+  };
+
   // =====================================================
   // RESET FORM
   // =====================================================
@@ -523,7 +536,7 @@ function JobCard() {
   };
 
   const handleRemoveJob = (id) => {
-    setJobs((prev) => prev.filter((item) => item.id !== id));
+    updateJobs((prev) => prev.filter((item) => item.id !== id));
   };
 
   return (
